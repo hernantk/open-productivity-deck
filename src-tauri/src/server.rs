@@ -36,6 +36,7 @@ pub async fn run(state: AppState) -> Result<(), String> {
         .route("/api/state", get(api_state))
         .route("/api/volume", post(set_volume))
         .route("/api/mute", post(toggle_mute))
+        .route("/api/microphone", post(toggle_microphone))
         .route("/api/actions/{id}", post(launch_action))
         .with_state(state);
 
@@ -69,6 +70,11 @@ async fn set_volume(
 async fn toggle_mute(State(state): State<AppState>, Query(auth): Query<AuthQuery>) -> Result<Json<AudioState>, ApiError> {
     authorize(&state, &auth)?;
     audio::toggle_mute().map(Json).map_err(internal_error)
+}
+
+async fn toggle_microphone(State(state): State<AppState>, Query(auth): Query<AuthQuery>) -> Result<Json<AudioState>, ApiError> {
+    authorize(&state, &auth)?;
+    audio::toggle_input_mute().map(Json).map_err(internal_error)
 }
 
 async fn launch_action(

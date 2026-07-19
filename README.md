@@ -6,9 +6,12 @@ Um deck de produtividade livre para Windows 10/11. O aplicativo desktop controla
 
 - Controle circular do volume de saída padrão do Windows.
 - Botão para mutar e restaurar o som.
+- Controle independente para mutar o microfone padrão.
 - Painel mobile aberto pelo navegador, sem aplicativo adicional.
 - Pareamento por QR Code com token aleatório revogável.
 - Atalhos configuráveis para executáveis, arquivos, URLs e protocolos do Windows.
+- Ícones personalizados em PNG, JPEG, WebP ou SVG para os aplicativos.
+- Execução em segundo plano pela bandeja do Windows.
 - Contadores experimentais de mensagens não lidas do Teams e WhatsApp.
 - Configuração local, sem conta, nuvem ou telemetria.
 
@@ -45,6 +48,10 @@ O instalador NSIS é criado em `src-tauri/target/release/bundle/nsis`.
 3. Controle o volume ou use os atalhos pelo navegador.
 4. Configure novos botões no computador e selecione **Publicar alterações**.
 5. Use **Invalidar e gerar novo QR** para encerrar acessos anteriores.
+
+Fechar a janela pelo X mantém o deck e o servidor local funcionando. Clique no ícone da bandeja do Windows para abrir novamente; use **Sair** no menu da bandeja para encerrar completamente.
+
+Cada atalho pode receber uma imagem de até 256 KB. O conteúdo do ícone é incorporado à configuração, portanto o caminho original da imagem não é enviado ao celular.
 
 Aplicativos instalados pela Microsoft Store podem ser abertos por seus protocolos registrados. Os padrões iniciais usam `msteams:` e `whatsapp:`; caso uma instalação não registre esses protocolos, selecione o executável ou atalho correspondente.
 

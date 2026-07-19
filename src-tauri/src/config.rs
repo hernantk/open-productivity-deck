@@ -18,6 +18,8 @@ pub struct DeckButton {
     pub target: String,
     pub kind: LaunchKind,
     pub color: String,
+    #[serde(default)]
+    pub icon: Option<String>,
     pub unread_provider: Option<UnreadProvider>,
 }
 
@@ -47,6 +49,7 @@ impl Default for DeckConfig {
                     target: "msteams:".into(),
                     kind: LaunchKind::Url,
                     color: "#675a9e".into(),
+                    icon: None,
                     unread_provider: Some(UnreadProvider::Teams),
                 },
                 DeckButton {
@@ -55,6 +58,7 @@ impl Default for DeckConfig {
                     target: "whatsapp:".into(),
                     kind: LaunchKind::Url,
                     color: "#286c64".into(),
+                    icon: None,
                     unread_provider: Some(UnreadProvider::Whatsapp),
                 },
             ],
@@ -86,11 +90,27 @@ impl DeckConfig {
             if !is_hex_color(&button.color) {
                 return Err(format!("A cor de ‘{}’ é inválida", button.label));
             }
+            if let Some(icon) = &button.icon {
+                if icon.len() > 350_000 || !is_supported_icon(icon) {
+                    return Err(format!("O ícone de ‘{}’ é inválido ou muito grande", button.label));
+                }
+            }
         }
 
         self.version = 1;
         Ok(self)
     }
+}
+
+fn is_supported_icon(value: &str) -> bool {
+    [
+        "data:image/png;base64,",
+        "data:image/jpeg;base64,",
+        "data:image/webp;base64,",
+        "data:image/svg+xml;base64,",
+    ]
+    .iter()
+    .any(|prefix| value.starts_with(prefix))
 }
 
 fn is_hex_color(value: &str) -> bool {

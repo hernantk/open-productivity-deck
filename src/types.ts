@@ -7,6 +7,7 @@ export interface DeckButton {
   target: string;
   kind: LaunchKind;
   color: string;
+  icon: string | null;
   unreadProvider: UnreadProvider;
 }
 
@@ -19,6 +20,7 @@ export interface DeckConfig {
 export interface AudioState {
   volume: number;
   muted: boolean;
+  microphoneMuted: boolean | null;
 }
 
 export interface DashboardState {

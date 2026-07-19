@@ -54,6 +54,7 @@ pub struct RemoteButton {
     pub id: Uuid,
     pub label: String,
     pub color: String,
+    pub icon: Option<String>,
     pub unread_provider: Option<UnreadProvider>,
 }
 
@@ -105,6 +106,7 @@ impl AppState {
                     id: button.id,
                     label: button.label.clone(),
                     color: button.color.clone(),
+                    icon: button.icon.clone(),
                     unread_provider: button.unread_provider,
                 })
                 .collect(),
