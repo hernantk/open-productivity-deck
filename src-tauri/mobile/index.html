@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#17211f">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:">
+  <title>Productivity Deck</title>
+  <style>
+    :root{font-family:"Segoe UI Variable",Segoe UI,sans-serif;color:#17211f;background:#17211f;font-synthesis:none;--paper:#f5f0e5;--ink:#17211f;--accent:#e9592f;--muted:#7b7d73;--rule:#c8c1b5}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;min-width:300px;min-height:100svh;background:var(--ink);overscroll-behavior:none}
+    button{font:inherit;color:inherit}
+    .shell{min-height:100svh;padding:calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));background:linear-gradient(165deg,#f5f0e5 0 64%,#e8dfd1 100%)}
+    header{display:flex;align-items:center;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--rule)}
+    .mark{display:grid;place-items:center;width:38px;height:38px;color:var(--paper);background:var(--ink);font-size:13px;font-weight:900;letter-spacing:-.06em;transform:rotate(-3deg)}
+    header div:nth-child(2){min-width:0}
+    .eyebrow{margin:0;color:var(--accent);font-size:9px;font-weight:900;letter-spacing:.17em}
+    h1{overflow:hidden;margin:1px 0 0;font-size:16px;line-height:1.1;text-overflow:ellipsis;white-space:nowrap}
+    .connection{display:flex;align-items:center;gap:6px;margin-left:auto;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase}
+    .connection i{width:7px;height:7px;border-radius:50%;background:#b1443e;box-shadow:0 0 0 4px #b1443e20}
+    .connection.online i{background:#36806c;box-shadow:0 0 0 4px #36806c20}
+    .volume-zone{display:grid;place-items:center;padding:24px 0 17px}
+    .dial{--value:0;position:relative;width:min(69vw,280px);aspect-ratio:1;border-radius:50%;background:conic-gradient(from 225deg,var(--accent) calc(var(--value)*.75%),#d1c9bb 0 75%,transparent 0);box-shadow:0 20px 40px #362f2517;touch-action:none;user-select:none}
+    .dial::before{content:"";position:absolute;inset:12px;border-radius:50%;background:var(--paper)}
+    .dial::after{content:"";position:absolute;inset:26px;border:1px solid var(--rule);border-radius:50%;box-shadow:inset 0 1px #fff,0 8px 25px #3c332615}
+    .dial-center{position:absolute;z-index:1;inset:25%;display:grid;place-items:center;align-content:center;pointer-events:none}
+    .speaker{width:25px;height:25px;color:var(--accent)}
+    .speaker path{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .value{margin:-1px 0 -5px;font-size:clamp(55px,17vw,76px);font-weight:650;line-height:1;letter-spacing:-.09em}
+    .unit{color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.18em}
+    .dial.muted{filter:grayscale(.75)}
+    .mute{display:flex;align-items:center;justify-content:center;gap:9px;width:min(69vw,280px);min-height:46px;margin:14px auto 0;border:1px solid var(--ink);background:transparent;font-size:12px;font-weight:850;letter-spacing:.03em}
+    .mute svg{width:18px;height:18px}
+    .mute.active{color:var(--paper);background:var(--ink)}
+    .rule-title{display:flex;align-items:center;gap:9px;margin:10px 0 13px;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.14em}
+    .rule-title::after{content:"";height:1px;flex:1;background:var(--rule)}
+    .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .action{--color:#e9592f;position:relative;display:grid;grid-template-columns:44px 1fr;align-items:center;gap:10px;min-height:68px;padding:11px;border:0;color:var(--paper);background:var(--color);text-align:left;font-size:12px;font-weight:850;line-height:1.1;box-shadow:inset 0 0 0 1px #0002;transition:transform 100ms ease,filter 100ms ease}
+    .action:active{transform:scale(.965);filter:brightness(.88)}
+    .glyph{display:grid;place-items:center;width:44px;height:44px;border:1px solid #fff8;font-size:15px;font-weight:900}
+    .action-label{overflow:hidden;text-overflow:ellipsis}
+    .badge{position:absolute;top:-5px;right:-5px;display:grid;place-items:center;min-width:23px;height:23px;padding:0 5px;border:2px solid var(--paper);border-radius:20px;color:var(--paper);background:var(--ink);font-size:9px}
+    .empty{grid-column:1/-1;padding:30px 22px;border:1px dashed var(--rule);color:var(--muted);text-align:center;font-size:12px;line-height:1.5}
+    .legal{margin:22px 0 0;color:var(--muted);font-size:8px;font-weight:700;letter-spacing:.08em;text-align:center;text-transform:uppercase}.toast{position:fixed;z-index:5;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));left:16px;padding:12px 14px;color:var(--paper);background:var(--ink);font-size:11px;font-weight:700;line-height:1.45;transform:translateY(150%);opacity:0;transition:transform 250ms cubic-bezier(.22,1,.36,1),opacity 180ms}
+    .toast.show{transform:translateY(0);opacity:1}
+    .auth-error{display:none;place-items:center;align-content:center;min-height:75svh;padding:30px;text-align:center}
+    .auth-error strong{font-size:25px;letter-spacing:-.04em}
+    .auth-error p{max-width:290px;color:var(--muted);font-size:13px;line-height:1.6}
+    @media(min-width:650px){.shell{width:min(700px,100%);margin:auto;padding-inline:28px}.actions{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
+</head>
+<body>
+  <main class="shell" id="app">
+    <header>
+      <div class="mark">OP</div>
+      <div><p class="eyebrow">OPEN PRODUCTIVITY</p><h1 id="title">Meu deck</h1></div>
+      <div class="connection" id="connection"><i></i><span>conectando</span></div>
+    </header>
+    <section class="volume-zone" aria-label="Controle de áudio">
+      <div class="dial" id="dial" role="slider" tabindex="0" aria-label="Volume de saída" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="dial-center">
+          <svg class="speaker" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></svg>
+          <strong class="value" id="volume">--</strong><span class="unit" id="unit">VOLUME</span>
+        </div>
+      </div>
+      <button class="mute" id="mute" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m16 10 6 6m0-6-6 6"/></svg><span>Mutar saída</span></button>
+    </section>
+    <div class="rule-title">AÇÕES APROVADAS</div>
+    <section class="actions" id="actions"><div class="empty">Carregando os atalhos do computador...</div></section>
+    <section class="auth-error" id="auth-error"><strong>Acesso encerrado.</strong><p>Abra o Open Productivity Deck no computador e leia o novo QR Code.</p></section><p class="legal">GPL-3.0-or-later · software sem garantia</p>
+  </main>
+  <div class="toast" id="toast" role="status"></div>
+  <script>
+    const params=new URLSearchParams(location.search);const supplied=params.get("token");
+    if(supplied){sessionStorage.setItem("deck-token",supplied);history.replaceState({},"",location.pathname)}
+    const token=sessionStorage.getItem("deck-token")||"";
+    const dial=document.getElementById("dial"),volume=document.getElementById("volume"),unit=document.getElementById("unit"),mute=document.getElementById("mute"),actions=document.getElementById("actions"),connection=document.getElementById("connection"),toast=document.getElementById("toast");
+    let state=null,toastTimer,volumeTimer,lastVolume=0;
+    const api=(path,options={})=>fetch(`${path}?token=${encodeURIComponent(token)}`,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}}).then(async response=>{if(response.status===401){showAuthError();throw new Error("Acesso expirado")}if(!response.ok)throw new Error((await response.text())||"Falha na comunicação");return response.status===204?null:response.json()});
+    function showToast(message){toast.textContent=message;toast.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove("show"),2600)}
+    function showAuthError(){document.querySelector(".volume-zone").style.display="none";document.querySelector(".rule-title").style.display="none";actions.style.display="none";document.getElementById("auth-error").style.display="grid";connection.classList.remove("online");connection.querySelector("span").textContent="expirado"}
+    function initials(label){return label.trim().split(/\s+/).slice(0,2).map(word=>word[0]).join("").toUpperCase()||"?"}
+    function render(next){state=next;document.getElementById("title").textContent=next.title;connection.classList.add("online");connection.querySelector("span").textContent="local";if(next.audio)setAudio(next.audio);actions.replaceChildren();if(!next.buttons.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="Configure os primeiros atalhos no computador.";actions.append(empty)}next.buttons.forEach(button=>{const element=document.createElement("button");element.type="button";element.className="action";element.style.setProperty("--color",button.color);const glyph=document.createElement("span");glyph.className="glyph";glyph.textContent=initials(button.label);const label=document.createElement("span");label.className="action-label";label.textContent=button.label;element.append(glyph,label);const count=button.unreadProvider?next.unread[button.unreadProvider]:null;if(Number.isFinite(count)&&count>0){const badge=document.createElement("b");badge.className="badge";badge.textContent=count>99?"99+":String(count);element.append(badge)}element.addEventListener("click",()=>launch(button));actions.append(element)})}
+    function setAudio(audio){lastVolume=Math.round(audio.volume*100);volume.textContent=lastVolume;dial.style.setProperty("--value",lastVolume);dial.setAttribute("aria-valuenow",String(lastVolume));dial.classList.toggle("muted",audio.muted);mute.classList.toggle("active",audio.muted);mute.querySelector("span").textContent=audio.muted?"Restaurar som":"Mutar saída";unit.textContent=audio.muted?"MUDO":"VOLUME"}
+    function load(){if(!token){showAuthError();return}api("/api/state").then(render).catch(error=>{connection.classList.remove("online");connection.querySelector("span").textContent="offline";if(error.message!=="Acesso expirado")showToast(error.message)})}
+    function launch(button){navigator.vibrate?.(20);api(`/api/actions/${button.id}`,{method:"POST"}).then(()=>showToast(`${button.label} aberto no computador`)).catch(error=>showToast(error.message))}
+    function sendVolume(value){lastVolume=Math.max(0,Math.min(100,Math.round(value)));setAudio({volume:lastVolume/100,muted:false});clearTimeout(volumeTimer);volumeTimer=setTimeout(()=>api("/api/volume",{method:"POST",body:JSON.stringify({value:lastVolume/100})}).then(setAudio).catch(error=>showToast(error.message)),55)}
+    function volumeFromPointer(event){const rect=dial.getBoundingClientRect(),x=event.clientX-rect.left-rect.width/2,y=event.clientY-rect.top-rect.height/2;let angle=Math.atan2(y,x)*180/Math.PI;if(angle<0)angle+=360;let travel=(angle-135+360)%360;if(travel>270)travel=travel<315?270:0;sendVolume(travel/270*100)}
+    dial.addEventListener("pointerdown",event=>{dial.setPointerCapture(event.pointerId);volumeFromPointer(event)});dial.addEventListener("pointermove",event=>{if(dial.hasPointerCapture(event.pointerId))volumeFromPointer(event)});dial.addEventListener("keydown",event=>{if(["ArrowUp","ArrowRight"].includes(event.key))sendVolume(lastVolume+2);if(["ArrowDown","ArrowLeft"].includes(event.key))sendVolume(lastVolume-2)});
+    mute.addEventListener("click",()=>{navigator.vibrate?.(15);api("/api/mute",{method:"POST"}).then(setAudio).catch(error=>showToast(error.message))});
+    load();setInterval(load,4000);
+  </script>
+</body>
+</html>

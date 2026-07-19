@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Open Productivity Deck",
+  "version": "0.1.0",
+  "identifier": "org.openproductivity.deck",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Open Productivity Deck",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 760,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "licenseFile": "../LICENSE",
+    "copyright": "Copyright Open Productivity Deck contributors",
+    "category": "Productivity",
+    "shortDescription": "Deck de produtividade controlado pelo celular",
+    "longDescription": "Controle o volume e abra aplicativos do Windows usando um painel local no celular.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}
