@@ -4,7 +4,6 @@ use std::{
     collections::HashMap,
     process::Command,
     sync::{LazyLock, Mutex},
-    time::{Duration, Instant},
 };
 
 #[cfg(windows)]
@@ -17,60 +16,58 @@ static COUNT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
 
 #[derive(Default)]
 pub struct UnreadCache {
-    inner: Mutex<Option<(Instant, HashMap<UnreadProvider, Option<u32>>)>>,
+    inner: Mutex<HashMap<UnreadProvider, Option<u32>>>,
 }
 
 impl UnreadCache {
-    pub fn counts(&self) -> HashMap<UnreadProvider, Option<u32>> {
-        if let Ok(cache) = self.inner.lock() {
-            if let Some((updated_at, counts)) = cache.as_ref() {
-                if updated_at.elapsed() < Duration::from_secs(5) {
-                    return counts.clone();
-                }
-            }
-        }
-
+    pub fn refresh(&self) {
         let counts = read_process_titles();
         if let Ok(mut cache) = self.inner.lock() {
-            *cache = Some((Instant::now(), counts.clone()));
+            *cache = counts;
         }
-        counts
+    }
+
+    pub fn snapshot(&self) -> HashMap<UnreadProvider, Option<u32>> {
+        self.inner.lock().map(|counts| counts.clone()).unwrap_or_default()
     }
 }
 
 fn read_process_titles() -> HashMap<UnreadProvider, Option<u32>> {
-    let mut command = Command::new("tasklist");
-    command.args(["/V", "/FO", "CSV", "/NH"]);
-    #[cfg(windows)]
-    command.creation_flags(0x0800_0000);
-
-    let Ok(output) = command.output() else {
-        return HashMap::new();
-    };
-    if !output.status.success() {
-        return HashMap::new();
-    }
-
     let mut found: HashMap<UnreadProvider, bool> = HashMap::new();
     let mut counts: HashMap<UnreadProvider, u32> = HashMap::new();
-    let output = String::from_utf8_lossy(&output.stdout);
-    let mut reader = csv::ReaderBuilder::new().has_headers(false).from_reader(output.as_bytes());
+    let processes = ["ms-teams.exe", "teams.exe", "msteams.exe", "WhatsApp.exe"];
 
-    for record in reader.records().flatten() {
-        let process = record.get(0).unwrap_or_default().to_ascii_lowercase();
-        let title = record.get(8).unwrap_or_default();
-        let provider = if matches!(process.as_str(), "ms-teams.exe" | "teams.exe" | "msteams.exe") {
-            Some(UnreadProvider::Teams)
-        } else if process == "whatsapp.exe" {
-            Some(UnreadProvider::Whatsapp)
-        } else {
-            None
+    for process_filter in processes {
+        let mut command = Command::new("tasklist");
+        command.args(["/V", "/FO", "CSV", "/NH", "/FI", &format!("IMAGENAME eq {process_filter}")]);
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
+
+        let Ok(output) = command.output() else {
+            continue;
         };
+        if !output.status.success() {
+            continue;
+        }
 
-        if let Some(provider) = provider {
-            found.insert(provider, true);
-            let count = parse_count(title).unwrap_or(0);
-            counts.entry(provider).and_modify(|current| *current = (*current).max(count)).or_insert(count);
+        let output = String::from_utf8_lossy(&output.stdout);
+        let mut reader = csv::ReaderBuilder::new().has_headers(false).from_reader(output.as_bytes());
+        for record in reader.records().flatten() {
+            let process = record.get(0).unwrap_or_default().to_ascii_lowercase();
+            let title = record.get(8).unwrap_or_default();
+            let provider = if matches!(process.as_str(), "ms-teams.exe" | "teams.exe" | "msteams.exe") {
+                Some(UnreadProvider::Teams)
+            } else if process == "whatsapp.exe" {
+                Some(UnreadProvider::Whatsapp)
+            } else {
+                None
+            };
+
+            if let Some(provider) = provider {
+                found.insert(provider, true);
+                let count = parse_count(title).unwrap_or(0);
+                counts.entry(provider).and_modify(|current| *current = (*current).max(count)).or_insert(count);
+            }
         }
     }
 

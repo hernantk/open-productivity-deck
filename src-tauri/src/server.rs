@@ -32,7 +32,7 @@ pub async fn run(state: AppState) -> Result<(), String> {
 
     let router = Router::new()
         .route("/", get(index))
-        .route("/health", get(|| async { "ok" }))
+        .route("/health", get(health))
         .route("/api/state", get(api_state))
         .route("/api/volume", post(set_volume))
         .route("/api/mute", post(toggle_mute))
@@ -46,6 +46,10 @@ pub async fn run(state: AppState) -> Result<(), String> {
 
 async fn index() -> Html<&'static str> {
     Html(MOBILE_HTML)
+}
+
+async fn health(State(state): State<AppState>) -> String {
+    format!("ok {}:{}", state.local_address, state.port)
 }
 
 async fn api_state(State(state): State<AppState>, Query(auth): Query<AuthQuery>) -> Result<Json<RemoteState>, ApiError> {

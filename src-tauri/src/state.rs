@@ -8,8 +8,11 @@ use directories::ProjectDirs;
 use serde::Serialize;
 use std::{
     collections::HashMap,
+    net::{IpAddr, Ipv4Addr},
     path::PathBuf,
     sync::{Arc, RwLock},
+    thread,
+    time::Duration,
 };
 use uuid::Uuid;
 
@@ -60,17 +63,23 @@ impl AppState {
             .map(|directories| directories.config_dir().join("deck.json"))
             .unwrap_or_else(|| PathBuf::from("deck.json"));
         let config = config::load(&config_path);
-        let local_address = local_ip_address::local_ip()
-            .map(|address| address.to_string())
-            .unwrap_or_else(|_| "127.0.0.1".into());
+        let local_address = discover_local_ipv4().to_string();
+        let unread = Arc::new(UnreadCache::default());
+        let unread_worker = Arc::clone(&unread);
+        let _ = thread::Builder::new()
+            .name("unread-counter".into())
+            .spawn(move || loop {
+                unread_worker.refresh();
+                thread::sleep(Duration::from_secs(5));
+            });
 
         Self {
             config: Arc::new(RwLock::new(config)),
             token: Arc::new(RwLock::new(Uuid::new_v4().to_string())),
             local_address,
-            port: DEFAULT_PORT,
+            port: configured_port(),
             config_path: Arc::new(config_path),
-            unread: Arc::new(UnreadCache::default()),
+            unread,
         }
     }
 
@@ -136,7 +145,7 @@ impl AppState {
 
     fn unread_counts(&self) -> HashMap<String, Option<u32>> {
         self.unread
-            .counts()
+            .snapshot()
             .into_iter()
             .map(|(provider, count)| {
                 let name = match provider {
@@ -146,5 +155,98 @@ impl AppState {
                 (name.into(), count)
             })
             .collect()
+    }
+}
+
+fn discover_local_ipv4() -> Ipv4Addr {
+    local_ip_address::list_afinet_netifas()
+        .ok()
+        .and_then(|interfaces| select_local_ipv4(&interfaces))
+        .or_else(|| match local_ip_address::local_ip().ok() {
+            Some(IpAddr::V4(address)) if is_usable(address) => Some(address),
+            _ => None,
+        })
+        .unwrap_or(Ipv4Addr::LOCALHOST)
+}
+
+fn configured_port() -> u16 {
+    std::env::var("OPEN_PRODUCTIVITY_DECK_PORT")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .filter(|port| *port >= 1024)
+        .unwrap_or(DEFAULT_PORT)
+}
+
+fn select_local_ipv4(interfaces: &[(String, IpAddr)]) -> Option<Ipv4Addr> {
+    let candidates: Vec<(&str, Ipv4Addr)> = interfaces
+        .iter()
+        .filter_map(|(name, address)| match address {
+            IpAddr::V4(address) if is_usable(*address) => Some((name.as_str(), *address)),
+            _ => None,
+        })
+        .collect();
+
+    candidates
+        .iter()
+        .find(|(name, address)| address.is_private() && !is_virtual_adapter(name))
+        .or_else(|| candidates.iter().find(|(_, address)| address.is_private()))
+        .or_else(|| candidates.iter().find(|(name, _)| !is_virtual_adapter(name)))
+        .or_else(|| candidates.first())
+        .map(|(_, address)| *address)
+}
+
+fn is_usable(address: Ipv4Addr) -> bool {
+    !address.is_loopback() && !address.is_link_local() && !address.is_unspecified() && !address.is_broadcast()
+}
+
+fn is_virtual_adapter(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    [
+        "bluetooth",
+        "docker",
+        "fortinet",
+        "hyper-v",
+        "loopback",
+        "openvpn",
+        "radmin",
+        "tap-",
+        "tailscale",
+        "tunnel",
+        "vethernet",
+        "virtual",
+        "vmware",
+        "vpn",
+        "wintun",
+        "wsl",
+        "zerotier",
+    ]
+    .iter()
+    .any(|marker| name.contains(marker))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prefers_private_physical_network_over_vpn() {
+        let interfaces = vec![
+            ("Radmin VPN".into(), IpAddr::V4(Ipv4Addr::new(26, 207, 153, 147))),
+            ("OpenVPN Wintun".into(), IpAddr::V4(Ipv4Addr::new(10, 8, 0, 2))),
+            ("Ethernet".into(), IpAddr::V4(Ipv4Addr::new(192, 168, 3, 8))),
+        ];
+
+        assert_eq!(select_local_ipv4(&interfaces), Some(Ipv4Addr::new(192, 168, 3, 8)));
+    }
+
+    #[test]
+    fn ignores_loopback_and_link_local_addresses() {
+        let interfaces = vec![
+            ("Loopback".into(), IpAddr::V4(Ipv4Addr::LOCALHOST)),
+            ("Bluetooth".into(), IpAddr::V4(Ipv4Addr::new(169, 254, 67, 201))),
+            ("Wi-Fi".into(), IpAddr::V4(Ipv4Addr::new(10, 0, 0, 24))),
+        ];
+
+        assert_eq!(select_local_ipv4(&interfaces), Some(Ipv4Addr::new(10, 0, 0, 24)));
     }
 }

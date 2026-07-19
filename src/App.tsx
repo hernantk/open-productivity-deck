@@ -225,7 +225,7 @@ export default function App() {
         <div className="pairing-panel">
           <div className="section-kicker"><span>02</span> CONECTAR CELULAR</div>
           <div className="pairing-content">
-            <div className="qr-frame">{dashboard?.pairingUrl ? <QRCodeSVG value={dashboard.pairingUrl} size={166} bgColor="#f5f0e5" fgColor="#17211f" level="M" /> : <div className="qr-placeholder" />}</div>
+            <div className="qr-frame">{dashboard?.pairingUrl ? <QRCodeSVG value={dashboard.pairingUrl} size={248} bgColor="#f5f0e5" fgColor="#17211f" level="M" marginSize={1} /> : <div className="qr-placeholder" />}</div>
             <div className="pairing-copy"><Icon name="phone" /><h2>Aponte. Abra. Controle.</h2><p>O celular precisa estar na mesma rede deste computador.</p><code>{dashboard ? `${dashboard.localAddress}:${dashboard.port}` : "localizando..."}</code><button type="button" className="text-button" onClick={() => void regeneratePairing()}><Icon name="refresh" />Invalidar e gerar novo QR</button></div>
           </div>
         </div>
