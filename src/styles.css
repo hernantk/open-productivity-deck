@@ -653,10 +653,18 @@ footer {
 .deck-screen {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(1100px, 100%);
+  width: min(1280px, 100%);
   min-height: 100vh;
   margin: 0 auto;
   padding: 20px clamp(16px, 3vw, 40px) 18px;
+}
+
+.deck-home .deck-home-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 0 8px;
+  display: grid;
+  gap: 28px;
 }
 
 .deck-topbar {
@@ -670,8 +678,30 @@ footer {
 
 .deck-stage {
   min-height: 0;
-  padding: 22px 0;
-  overflow: auto;
+}
+
+.home-editors {
+  padding: 0 0 12px;
+  border-top: 1px solid var(--rule);
+  padding-top: 24px;
+}
+
+.grid-inline {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: .58rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.grid-inline select {
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--field-border);
+  color: var(--ink);
+  background: var(--field-fill);
+  font-size: .75rem;
 }
 
 .deck-grid {

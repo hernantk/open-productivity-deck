@@ -372,13 +372,13 @@ export default function App() {
 
   if (screen === "deck") {
     return (
-      <main className="deck-screen">
+      <main className="deck-screen deck-home">
         <header className="deck-topbar">
           <div className="brand-block">
             <div className="brand-mark">OP</div>
             <div>
               <p>OPEN PRODUCTIVITY</p>
-              <h1>{live?.title || "Deck"}</h1>
+              <h1>{draft?.title || live?.title || "Deck"}</h1>
             </div>
           </div>
           <div className="topbar-tools">
@@ -391,29 +391,83 @@ export default function App() {
           </div>
         </header>
 
-        <section className="deck-stage">
-          <div className="deck-grid" style={{ "--grid-size": String(gridSize) } as React.CSSProperties}>
-            {live?.buttons.map((button) => (
-              <DeckTile
-                key={button.id}
-                button={button}
-                unread={button.unreadProvider ? dashboard?.unread[button.unreadProvider] : null}
-                onClick={() => void launchTile(button.id)}
-              />
-            ))}
-            {(!live || live.buttons.length === 0) && (
-              <div className="deck-empty">
-                <h2>Nenhum atalho publicado</h2>
-                <p>Abra as configurações para montar o deck do celular.</p>
-                <button type="button" className="primary-button" onClick={() => setScreen("settings")}>Abrir configurações</button>
+        <div className="deck-home-body">
+          <section className="deck-stage">
+            <div className="deck-grid" style={{ "--grid-size": String(draft?.gridSize ?? gridSize) } as React.CSSProperties}>
+              {(draft ?? live)?.buttons.map((button) => (
+                <DeckTile
+                  key={button.id}
+                  button={button}
+                  unread={button.unreadProvider ? dashboard?.unread[button.unreadProvider] : null}
+                  onClick={() => void launchTile(button.id)}
+                />
+              ))}
+              {(!draft || draft.buttons.length === 0) && (
+                <div className="deck-empty">
+                  <h2>Nenhum atalho ainda</h2>
+                  <p>Adicione aplicativos ou sites abaixo e publique para o celular.</p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="deck-section home-editors">
+            <div className="deck-heading">
+              <div>
+                <h2 className="panel-title">Atalhos</h2>
+                <p>Edite aqui o que aparece na grade. Publique para sincronizar com o celular.</p>
               </div>
-            )}
-          </div>
-        </section>
+              <div className="deck-heading-actions">
+                <label className="grid-inline">Grade
+                  <select
+                    value={draft?.gridSize ?? 4}
+                    onChange={(event) => draft && setDraft({ ...draft, gridSize: Number(event.target.value) as GridSize })}
+                  >
+                    <option value={3}>3×3</option>
+                    <option value={4}>4×4</option>
+                    <option value={5}>5×5</option>
+                  </select>
+                </label>
+                <button type="button" className="secondary-button" onClick={() => addButton("application")}><Icon name="plus" />App</button>
+                <button type="button" className="secondary-button" onClick={() => addButton("url")}><Icon name="link" />Site</button>
+                <button type="button" className="primary-button" disabled={saving || !draft} onClick={() => void save()}><Icon name="save" />{saving ? "Publicando..." : "Publicar"}</button>
+              </div>
+            </div>
+
+            <div className="button-list">
+              {draft?.buttons.map((button, index) => (
+                <ButtonEditor
+                  key={button.id}
+                  button={button}
+                  index={index}
+                  total={draft.buttons.length}
+                  fetchingIcon={fetchingIconId === button.id}
+                  onChange={(next) => changeButton(index, next)}
+                  onMove={(direction) => moveButton(index, direction)}
+                  onRemove={() => setDraft({ ...draft, buttons: draft.buttons.filter((_, itemIndex) => itemIndex !== index) })}
+                  onPick={() => void pickTarget(index)}
+                  onPickIcon={() => void pickIcon(index)}
+                  onClearIcon={() => changeButton(index, { ...button, icon: null })}
+                  onFetchIcon={() => void fetchIcon(index)}
+                />
+              ))}
+              {draft?.buttons.length === 0 && (
+                <div className="empty-state">
+                  <h3>Monte seu deck</h3>
+                  <p>Adicione o primeiro atalho para começar.</p>
+                  <div className="deck-heading-actions">
+                    <button type="button" className="secondary-button" onClick={() => addButton("application")}>Adicionar app</button>
+                    <button type="button" className="secondary-button" onClick={() => addButton("url")}>Adicionar site</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
 
         <footer className="deck-footer">
-          <span className={`service-status inline`}><span className={dashboard ? "online" : ""} />{status}</span>
-          <span>{gridSize}×{gridSize}</span>
+          <span className="service-status inline"><span className={dashboard ? "online" : ""} />{status}</span>
+          <span>{(draft?.gridSize ?? gridSize)}×{(draft?.gridSize ?? gridSize)}</span>
         </footer>
       </main>
     );
@@ -428,7 +482,7 @@ export default function App() {
           </button>
           <div>
             <p>CONFIGURAÇÕES</p>
-            <h1>Deck</h1>
+            <h1>Serviço</h1>
           </div>
         </div>
         <div className="topbar-tools">
@@ -464,28 +518,6 @@ export default function App() {
         </div>
       </section>
 
-      <section className="service-section appearance-section">
-        <div className="service-copy">
-          <h2 className="panel-title">Aparência</h2>
-          <p>Tema e grade do deck no computador e no celular.</p>
-        </div>
-        <div className="appearance-fields">
-          <label>Grade
-            <select
-              value={draft?.gridSize ?? 4}
-              onChange={(event) => draft && setDraft({ ...draft, gridSize: Number(event.target.value) as GridSize })}
-            >
-              <option value={3}>3×3</option>
-              <option value={4}>4×4</option>
-              <option value={5}>5×5</option>
-            </select>
-          </label>
-          <label className="toggle-field"><span>Modo escuro</span>
-            <button type="button" className={`toggle ${theme === "dark" ? "on" : ""}`} role="switch" aria-checked={theme === "dark"} onClick={() => void toggleTheme()}><i /></button>
-          </label>
-        </div>
-      </section>
-
       <section className="service-section">
         <div className="service-copy">
           <h2 className="panel-title">Portas do serviço</h2>
@@ -497,49 +529,6 @@ export default function App() {
           <button type="button" className="secondary-button" disabled={savingPorts || !ports || !portsDirty} onClick={() => void savePorts()}>{savingPorts ? "Salvando..." : "Salvar portas"}</button>
         </div>
         {portsRestart && <p className="service-hint">Reinício necessário para aplicar {ports?.port}/{ports?.securePort}.</p>}
-      </section>
-
-      <section className="deck-section">
-        <div className="deck-heading">
-          <div>
-            <h2 className="panel-title">Atalhos</h2>
-            <p>Publique para atualizar a grade do celular e a tela inicial.</p>
-          </div>
-          <div className="deck-heading-actions">
-            <button type="button" className="secondary-button" onClick={() => addButton("application")}><Icon name="plus" />App</button>
-            <button type="button" className="secondary-button" onClick={() => addButton("url")}><Icon name="link" />Site</button>
-            <button type="button" className="primary-button" disabled={saving || !draft} onClick={() => void save()}><Icon name="save" />{saving ? "Publicando..." : "Publicar"}</button>
-          </div>
-        </div>
-
-        <div className="button-list">
-          {draft?.buttons.map((button, index) => (
-            <ButtonEditor
-              key={button.id}
-              button={button}
-              index={index}
-              total={draft.buttons.length}
-              fetchingIcon={fetchingIconId === button.id}
-              onChange={(next) => changeButton(index, next)}
-              onMove={(direction) => moveButton(index, direction)}
-              onRemove={() => setDraft({ ...draft, buttons: draft.buttons.filter((_, itemIndex) => itemIndex !== index) })}
-              onPick={() => void pickTarget(index)}
-              onPickIcon={() => void pickIcon(index)}
-              onClearIcon={() => changeButton(index, { ...button, icon: null })}
-              onFetchIcon={() => void fetchIcon(index)}
-            />
-          ))}
-          {draft?.buttons.length === 0 && (
-            <div className="empty-state">
-              <h3>Nenhum atalho ainda</h3>
-              <p>Adicione um aplicativo ou um site para começar.</p>
-              <div className="deck-heading-actions">
-                <button type="button" className="secondary-button" onClick={() => addButton("application")}>Adicionar app</button>
-                <button type="button" className="secondary-button" onClick={() => addButton("url")}>Adicionar site</button>
-              </div>
-            </div>
-          )}
-        </div>
       </section>
 
       <footer><span>Open Productivity Deck 0.7.0</span><span>GPL-3.0-or-later · sem garantia</span></footer>
