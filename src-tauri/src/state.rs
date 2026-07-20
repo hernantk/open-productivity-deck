@@ -2,6 +2,7 @@ use crate::{
     audio::{self, AudioState},
     config::{self, DeckConfig, UnreadProvider},
     launcher,
+    spotify::{self, SpotifyState},
     unread::UnreadCache,
 };
 use directories::ProjectDirs;
@@ -49,6 +50,7 @@ pub struct RemoteState {
     pub title: String,
     pub buttons: Vec<RemoteButton>,
     pub audio: Option<AudioState>,
+    pub spotify: SpotifyState,
     pub unread: HashMap<String, Option<u32>>,
 }
 
@@ -123,6 +125,7 @@ impl AppState {
                 })
                 .collect(),
             audio: audio::state().ok(),
+            spotify: spotify::state(),
             unread: self.unread_counts(),
         }
     }

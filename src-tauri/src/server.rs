@@ -1,5 +1,6 @@
 use crate::{
     audio::{self, AudioState},
+    spotify::{self, SpotifyAction, SpotifyState},
     state::{AppState, RemoteState},
     tls,
 };
@@ -76,6 +77,8 @@ pub async fn run(state: AppState) -> Result<(), String> {
         .route("/api/volume", post(set_volume))
         .route("/api/mute", post(toggle_mute))
         .route("/api/microphone", post(toggle_microphone))
+        .route("/api/spotify", get(spotify_state))
+        .route("/api/spotify/{action}", post(control_spotify))
         .route("/api/actions/{id}", post(launch_action))
         .with_state(state.clone());
 
@@ -145,7 +148,10 @@ async fn health(State(state): State<AppState>) -> String {
 
 async fn api_state(State(state): State<AppState>, Query(auth): Query<AuthQuery>) -> Result<Json<RemoteState>, ApiError> {
     authorize(&state, &auth)?;
-    Ok(Json(state.remote()))
+    tauri::async_runtime::spawn_blocking(move || state.remote())
+        .await
+        .map(Json)
+        .map_err(|error| internal_error(format!("Falha ao consultar o estado: {error}")))
 }
 
 async fn unread_events(
@@ -188,6 +194,36 @@ async fn toggle_mute(State(state): State<AppState>, Query(auth): Query<AuthQuery
 async fn toggle_microphone(State(state): State<AppState>, Query(auth): Query<AuthQuery>) -> Result<Json<AudioState>, ApiError> {
     authorize(&state, &auth)?;
     audio::toggle_input_mute().map(Json).map_err(internal_error)
+}
+
+async fn control_spotify(
+    State(state): State<AppState>,
+    Query(auth): Query<AuthQuery>,
+    Path(action): Path<String>,
+) -> Result<Json<SpotifyState>, ApiError> {
+    authorize(&state, &auth)?;
+    let action = match action.as_str() {
+        "toggle" => SpotifyAction::Toggle,
+        "next" => SpotifyAction::Next,
+        "previous" => SpotifyAction::Previous,
+        _ => return Err((StatusCode::BAD_REQUEST, "Comando do Spotify inválido".into())),
+    };
+    tauri::async_runtime::spawn_blocking(move || spotify::control(action))
+        .await
+        .map_err(|error| internal_error(format!("Falha no controle do Spotify: {error}")))?
+        .map(Json)
+        .map_err(internal_error)
+}
+
+async fn spotify_state(
+    State(state): State<AppState>,
+    Query(auth): Query<AuthQuery>,
+) -> Result<Json<SpotifyState>, ApiError> {
+    authorize(&state, &auth)?;
+    tauri::async_runtime::spawn_blocking(spotify::state)
+        .await
+        .map(Json)
+        .map_err(|error| internal_error(format!("Falha ao consultar o Spotify: {error}")))
 }
 
 async fn launch_action(

@@ -2,6 +2,7 @@ mod audio;
 mod config;
 mod launcher;
 mod server;
+mod spotify;
 mod state;
 mod tls;
 mod unread;
