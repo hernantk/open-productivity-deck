@@ -3,6 +3,7 @@ use crate::{
     audio::{self, AudioState},
     config::{self, DeckConfig, UnreadProvider},
     launcher,
+    service::{self, ServiceSettings},
     spotify::{self, SpotifyState},
     unread::UnreadCache,
 };
@@ -31,6 +32,7 @@ pub struct AppState {
     pub secure_port: u16,
     pub tls_dir: Arc<PathBuf>,
     config_path: Arc<PathBuf>,
+    service_path: Arc<PathBuf>,
     token_path: Arc<PathBuf>,
     unread: Arc<UnreadCache>,
 }
@@ -44,6 +46,7 @@ pub struct DashboardState {
     pub local_address: String,
     pub port: u16,
     pub secure_port: u16,
+    pub service_settings: ServiceSettings,
     pub device_id: String,
     pub device_name: String,
     pub unread: HashMap<String, Option<u32>>,
@@ -68,6 +71,7 @@ pub struct RemoteButton {
     pub label: String,
     pub color: String,
     pub icon: Option<String>,
+    pub show_label: bool,
     pub unread_provider: Option<UnreadProvider>,
 }
 
@@ -83,6 +87,7 @@ impl AppState {
             .map(|directories| directories.data_local_dir().join("tls"))
             .unwrap_or_else(|| config_dir.join("tls"));
         let config_path = config_dir.join("deck.json");
+        let service_path = config_dir.join("service.json");
         let token_path = config_dir.join("auth-token");
         let device_id_path = config_dir.join("device-id");
         let mut config = config::load(&config_path);
@@ -91,7 +96,7 @@ impl AppState {
         let token = load_or_create_token(&token_path);
         let device_id = load_or_create_token(&device_id_path);
         let device_name = std::env::var("COMPUTERNAME").ok().filter(|name| !name.trim().is_empty()).unwrap_or_else(|| "Computador Windows".into());
-        let (port, secure_port) = configured_ports();
+        let ports = service::resolve(&service_path);
         let unread = Arc::new(UnreadCache::default());
         Arc::clone(&unread).start();
 
@@ -101,10 +106,11 @@ impl AppState {
             device_id,
             device_name,
             local_address,
-            port,
-            secure_port,
+            port: ports.port,
+            secure_port: ports.secure_port,
             tls_dir: Arc::new(tls_dir),
             config_path: Arc::new(config_path),
+            service_path: Arc::new(service_path),
             token_path: Arc::new(token_path),
             unread,
         }
@@ -118,6 +124,7 @@ impl AppState {
             local_address: self.local_address.clone(),
             port: self.port,
             secure_port: self.secure_port,
+            service_settings: service::load(&self.service_path),
             device_id: self.device_id.clone(),
             device_name: self.device_name.clone(),
             unread: self.unread_counts(),
@@ -138,6 +145,7 @@ impl AppState {
                     label: button.label.clone(),
                     color: button.color.clone(),
                     icon: button.icon.clone(),
+                    show_label: button.show_label,
                     unread_provider: button.unread_provider,
                 })
                 .collect(),
@@ -152,6 +160,12 @@ impl AppState {
         config::save(&self.config_path, &config)?;
         *self.config.write().map_err(|_| "A configuração está bloqueada".to_string())? = config.clone();
         Ok(config)
+    }
+
+    pub fn save_service_settings(&self, settings: ServiceSettings) -> Result<ServiceSettings, String> {
+        let settings = settings.validate()?;
+        service::save(&self.service_path, &settings)?;
+        Ok(settings)
     }
 
     pub fn launch(&self, id: Uuid) -> Result<(), String> {
@@ -339,20 +353,6 @@ fn windows_network_interfaces() -> Vec<NetworkInterface> {
         }
         Some(Ipv4Addr::from(unsafe { address.sin_addr.S_un.S_addr }.to_ne_bytes()))
     }
-}
-
-fn configured_ports() -> (u16, u16) {
-    let port = std::env::var("OPEN_PRODUCTIVITY_DECK_PORT")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .filter(|port| *port >= 1024)
-        .unwrap_or(DEFAULT_PORT);
-    let secure_port = std::env::var("OPEN_PRODUCTIVITY_DECK_HTTPS_PORT")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .filter(|secure_port| *secure_port >= 1024 && *secure_port != port)
-        .unwrap_or_else(|| if port == DEFAULT_PORT { DEFAULT_SECURE_PORT } else { port.saturating_add(1) });
-    (port, secure_port)
 }
 
 fn load_or_create_token(path: &Path) -> String {

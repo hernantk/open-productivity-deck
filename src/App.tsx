@@ -2,11 +2,14 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { QRCodeSVG } from "qrcode.react";
-import type { AudioState, DashboardState, DeckButton, DeckConfig } from "./types";
+import type { AudioState, DashboardState, DeckButton, DeckConfig, ServiceSettings } from "./types";
 
 const ACCENTS = ["#e9592f", "#286c64", "#d39a22", "#675a9e", "#a63d53", "#3f658c"];
+const THEME_KEY = "opd-theme";
 
-function Icon({ name }: { name: "volume" | "mute" | "microphone" | "phone" | "plus" | "save" | "refresh" | "folder" | "up" | "down" | "trash" | "image" }) {
+type Theme = "light" | "dark";
+
+function Icon({ name }: { name: "volume" | "mute" | "microphone" | "phone" | "plus" | "save" | "refresh" | "folder" | "up" | "down" | "trash" | "image" | "globe" | "sun" | "moon" | "link" }) {
   const paths = {
     volume: <><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></>,
     mute: <><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m16 10 6 6m0-6-6 6"/></>,
@@ -20,8 +23,18 @@ function Icon({ name }: { name: "volume" | "mute" | "microphone" | "phone" | "pl
     down: <path d="m6 9 6 6 6-6"/>,
     trash: <><path d="M4 7h16M9 3h6l1 4H8l1-4ZM7 7l1 14h8l1-14"/><path d="M10 11v6m4-6v6"/></>,
     image: <><rect x="3" y="4" width="18" height="16" rx="1"/><circle cx="9" cy="10" r="2"/><path d="m4 17 5-4 3 3 3-2 5 4"/></>,
+    globe: <><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></>,
+    sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></>,
+    moon: <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3 7 7 0 0 0 21 14.5Z"/>,
+    link: <><path d="M10 13a5 5 0 0 0 7.07 0l2.12-2.12a5 5 0 0 0-7.07-7.07L11 5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.8 13.12a5 5 0 0 0 7.07 7.07L13 19"/></>,
   };
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
+}
+
+function readTheme(): Theme {
+  const stored = localStorage.getItem(THEME_KEY);
+  if (stored === "light" || stored === "dark") return stored;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 function VolumeDial({ audio, onChange }: { audio: AudioState | null; onChange: (value: number) => void }) {
@@ -73,33 +86,36 @@ function VolumeDial({ audio, onChange }: { audio: AudioState | null; onChange: (
 function ActionPreview({ button, unread }: { button: DeckButton; unread: number | null | undefined }) {
   const initials = button.label.trim().split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "?";
   return (
-    <div className="action-preview" style={{ "--button-color": button.color } as React.CSSProperties}>
+    <div className={`action-preview ${button.showLabel ? "" : "icon-only"}`} style={{ "--button-color": button.color } as React.CSSProperties} title={button.label || "Sem nome"}>
       <span className="action-glyph">{button.icon ? <img src={button.icon} alt="" /> : initials}</span>
-      <span>{button.label || "Sem nome"}</span>
+      {button.showLabel && <span className="action-name">{button.label || "Sem nome"}</span>}
       {typeof unread === "number" && unread > 0 && <b className="unread-badge">{unread > 99 ? "99+" : unread}</b>}
     </div>
   );
 }
 
-function ButtonEditor({ button, index, total, onChange, onMove, onRemove, onPick, onPickIcon, onClearIcon }: {
+function ButtonEditor({ button, index, total, fetchingIcon, onChange, onMove, onRemove, onPick, onPickIcon, onClearIcon, onFetchIcon }: {
   button: DeckButton;
   index: number;
   total: number;
+  fetchingIcon: boolean;
   onChange: (button: DeckButton) => void;
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
   onPick: () => void;
   onPickIcon: () => void;
   onClearIcon: () => void;
+  onFetchIcon: () => void;
 }) {
   return (
     <article className="button-editor">
       <ActionPreview button={button} unread={null} />
       <div className="editor-fields">
         <label>Nome<input value={button.label} maxLength={32} onChange={(event) => onChange({ ...button, label: event.target.value })} /></label>
-        <label>Tipo<select value={button.kind} onChange={(event) => onChange({ ...button, kind: event.target.value as DeckButton["kind"] })}><option value="application">Aplicativo ou arquivo</option><option value="url">Endereço ou protocolo</option></select></label>
-        <label className="target-field">Destino<span className="input-with-action"><input value={button.target} placeholder={button.kind === "url" ? "https://... ou protocolo:" : "C:\\...\\aplicativo.exe"} onChange={(event) => onChange({ ...button, target: event.target.value })} />{button.kind === "application" && <button type="button" className="field-action" onClick={onPick} aria-label="Procurar aplicativo"><Icon name="folder" /></button>}</span></label>
+        <label>Tipo<select value={button.kind} onChange={(event) => onChange({ ...button, kind: event.target.value as DeckButton["kind"] })}><option value="application">Aplicativo ou arquivo</option><option value="url">Site, endereço ou protocolo</option></select></label>
+        <label className="target-field">Destino<span className="input-with-action"><input value={button.target} placeholder={button.kind === "url" ? "https://exemplo.com ou protocolo:" : "C:\\...\\aplicativo.exe"} onChange={(event) => onChange({ ...button, target: event.target.value })} />{button.kind === "application" && <button type="button" className="field-action" onClick={onPick} aria-label="Procurar aplicativo"><Icon name="folder" /></button>}{button.kind === "url" && <button type="button" className="field-action" onClick={onFetchIcon} disabled={fetchingIcon || !button.target.trim()} aria-label="Importar ícone do site"><Icon name="globe" /></button>}</span></label>
         <label>Contador<select value={button.unreadProvider ?? ""} onChange={(event) => onChange({ ...button, unreadProvider: (event.target.value || null) as DeckButton["unreadProvider"] })}><option value="">Nenhum</option><option value="teams">Microsoft Teams</option><option value="whatsapp">WhatsApp</option></select></label>
+        <label className="toggle-field"><span>Mostrar nome</span><button type="button" className={`toggle ${button.showLabel ? "on" : ""}`} role="switch" aria-checked={button.showLabel} onClick={() => onChange({ ...button, showLabel: !button.showLabel })}><i /></button></label>
         <div className="icon-field"><span>Ícone</span><div><button type="button" onClick={onPickIcon}><Icon name="image" />{button.icon ? "Trocar" : "Escolher"}</button>{button.icon && <button type="button" className="clear-icon" onClick={onClearIcon} aria-label="Remover ícone">×</button>}</div></div>
         <fieldset className="color-field"><legend>Cor</legend><div>{ACCENTS.map((color) => <button key={color} type="button" className={button.color === color ? "selected" : ""} style={{ backgroundColor: color }} aria-label={`Usar cor ${color}`} onClick={() => onChange({ ...button, color })} />)}</div></fieldset>
       </div>
@@ -115,15 +131,25 @@ function ButtonEditor({ button, index, total, onChange, onMove, onRemove, onPick
 export default function App() {
   const [dashboard, setDashboard] = useState<DashboardState | null>(null);
   const [draft, setDraft] = useState<DeckConfig | null>(null);
+  const [ports, setPorts] = useState<ServiceSettings | null>(null);
   const [status, setStatus] = useState("Conectando ao serviço local...");
   const [saving, setSaving] = useState(false);
+  const [savingPorts, setSavingPorts] = useState(false);
+  const [fetchingIconId, setFetchingIconId] = useState<string | null>(null);
+  const [theme, setTheme] = useState<Theme>(() => readTheme());
   const volumeTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
 
   async function loadState(silent = false) {
     try {
       const next = await invoke<DashboardState>("get_dashboard_state");
       setDashboard(next);
       setDraft((current) => current ?? next.config);
+      setPorts((current) => current ?? next.serviceSettings);
       if (!silent) setStatus("Serviço local pronto");
     } catch (error) {
       setStatus(`Não foi possível iniciar: ${String(error)}`);
@@ -151,6 +177,22 @@ export default function App() {
       setStatus(`Falha ao salvar: ${String(error)}`);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function savePorts() {
+    if (!ports) return;
+    setSavingPorts(true);
+    try {
+      const settings = await invoke<ServiceSettings>("save_service_settings", { settings: ports });
+      setPorts(settings);
+      setDashboard((current) => current ? { ...current, serviceSettings: settings } : current);
+      const restartNeeded = dashboard && (settings.port !== dashboard.port || settings.securePort !== dashboard.securePort);
+      setStatus(restartNeeded ? "Portas salvas. Reinicie o aplicativo para aplicar." : "Portas confirmadas");
+    } catch (error) {
+      setStatus(`Falha nas portas: ${String(error)}`);
+    } finally {
+      setSavingPorts(false);
     }
   }
 
@@ -228,9 +270,36 @@ export default function App() {
     }
   }
 
-  function addButton() {
+  async function fetchIcon(index: number) {
     if (!draft) return;
-    setDraft({ ...draft, buttons: [...draft.buttons, { id: crypto.randomUUID(), label: "Novo atalho", target: "", kind: "application", color: ACCENTS[draft.buttons.length % ACCENTS.length], icon: null, unreadProvider: null }] });
+    const button = draft.buttons[index];
+    setFetchingIconId(button.id);
+    try {
+      const icon = await invoke<string>("fetch_site_icon", { url: button.target });
+      changeButton(index, { ...button, icon });
+      setStatus("Ícone do site importado; publique para enviar ao celular");
+    } catch (error) {
+      setStatus(`Falha no ícone do site: ${String(error)}`);
+    } finally {
+      setFetchingIconId(null);
+    }
+  }
+
+  function addButton(kind: DeckButton["kind"] = "application") {
+    if (!draft) return;
+    setDraft({
+      ...draft,
+      buttons: [...draft.buttons, {
+        id: crypto.randomUUID(),
+        label: kind === "url" ? "Novo site" : "Novo atalho",
+        target: kind === "url" ? "https://" : "",
+        kind,
+        color: ACCENTS[draft.buttons.length % ACCENTS.length],
+        icon: null,
+        showLabel: false,
+        unreadProvider: null,
+      }],
+    });
   }
 
   async function regeneratePairing() {
@@ -244,44 +313,111 @@ export default function App() {
   }
 
   const microphoneMuted = dashboard?.audio?.microphoneMuted;
+  const qrFg = theme === "dark" ? "#e8e4dc" : "#17211f";
+  const qrBg = theme === "dark" ? "#1a2220" : "#f5f0e5";
+  const portsDirty = ports && dashboard && (ports.port !== dashboard.serviceSettings.port || ports.securePort !== dashboard.serviceSettings.securePort);
+  const portsRestart = ports && dashboard && (ports.port !== dashboard.port || ports.securePort !== dashboard.securePort);
 
   return (
     <main>
       <header className="topbar">
-        <div className="brand-mark">OP</div>
-        <div><p>OPEN PRODUCTIVITY</p><h1>Deck de controle</h1></div>
-        <div className="service-status"><span className={dashboard ? "online" : ""} />{status}</div>
+        <div className="brand-block">
+          <div className="brand-mark">OP</div>
+          <div>
+            <p>OPEN PRODUCTIVITY</p>
+            <h1>Deck</h1>
+          </div>
+        </div>
+        <div className="topbar-tools">
+          <button type="button" className="theme-toggle" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} aria-label={theme === "dark" ? "Usar modo claro" : "Usar modo escuro"}>
+            <Icon name={theme === "dark" ? "sun" : "moon"} />
+          </button>
+          <div className="service-status"><span className={dashboard ? "online" : ""} />{status}</div>
+        </div>
       </header>
 
       <section className="hero-grid">
         <div className="audio-panel">
-          <div className="section-kicker"><span>01</span> SAÍDA PADRÃO DO WINDOWS</div>
+          <h2 className="panel-title">Áudio</h2>
           <VolumeDial audio={dashboard?.audio ?? null} onChange={updateVolume} />
-          <div className="audio-actions"><button className={`mute-button ${dashboard?.audio?.muted ? "active" : ""}`} type="button" onClick={() => void toggleMute()}><Icon name={dashboard?.audio?.muted ? "volume" : "mute"} />{dashboard?.audio?.muted ? "Restaurar som" : "Mutar saída"}</button><button className={`mute-button ${microphoneMuted ? "active" : ""}`} disabled={microphoneMuted == null} type="button" onClick={() => void toggleMicrophone()}><Icon name="microphone" />{microphoneMuted == null ? "Microfone indisponível" : microphoneMuted ? "Ligar microfone" : "Mutar microfone"}</button></div>
+          <div className="audio-actions">
+            <button className={`mute-button ${dashboard?.audio?.muted ? "active" : ""}`} type="button" onClick={() => void toggleMute()}><Icon name={dashboard?.audio?.muted ? "volume" : "mute"} />{dashboard?.audio?.muted ? "Restaurar" : "Mutar"}</button>
+            <button className={`mute-button ${microphoneMuted ? "active" : ""}`} disabled={microphoneMuted == null} type="button" onClick={() => void toggleMicrophone()}><Icon name="microphone" />{microphoneMuted == null ? "Sem mic" : microphoneMuted ? "Ligar mic" : "Mutar mic"}</button>
+          </div>
         </div>
 
         <div className="pairing-panel">
-          <div className="section-kicker"><span>02</span> CONECTAR CELULAR</div>
+          <h2 className="panel-title">Celular</h2>
           <div className="pairing-content">
-            <div className="qr-frame">{dashboard?.pairingUrl ? <QRCodeSVG value={dashboard.pairingUrl} size={248} bgColor="#f5f0e5" fgColor="#17211f" level="M" marginSize={1} /> : <div className="qr-placeholder" />}</div>
-            <div className="pairing-copy"><Icon name="phone" /><h2>Aponte. Instale. Controle.</h2><p>O QR prepara o certificado local e abre a PWA segura no celular.</p><code>{dashboard ? `${dashboard.localAddress}:${dashboard.port} → HTTPS :${dashboard.securePort}` : "localizando..."}</code><button type="button" className="text-button" onClick={() => void regeneratePairing()}><Icon name="refresh" />Invalidar e gerar novo QR</button></div>
+            <div className="qr-frame">{dashboard?.pairingUrl ? <QRCodeSVG value={dashboard.pairingUrl} size={220} bgColor={qrBg} fgColor={qrFg} level="M" marginSize={1} /> : <div className="qr-placeholder" />}</div>
+            <div className="pairing-copy">
+              <Icon name="phone" />
+              <h3>Conecte o celular</h3>
+              <p>Leia o QR para instalar o certificado e abrir a PWA na rede local.</p>
+              <code>{dashboard ? `${dashboard.localAddress}:${dashboard.port} → :${dashboard.securePort}` : "localizando..."}</code>
+              <button type="button" className="text-button" onClick={() => void regeneratePairing()}><Icon name="refresh" />Gerar novo QR</button>
+            </div>
           </div>
         </div>
       </section>
 
+      <section className="service-section">
+        <div className="service-copy">
+          <h2 className="panel-title">Portas do serviço</h2>
+          <p>Use outras portas se 37621/37622 estiverem ocupadas. Reinicie o app após salvar.</p>
+        </div>
+        <div className="service-fields">
+          <label>HTTP<input type="number" min={1024} max={65535} value={ports?.port ?? ""} onChange={(event) => setPorts((current) => current ? { ...current, port: Number(event.target.value) || 0 } : current)} /></label>
+          <label>HTTPS<input type="number" min={1024} max={65535} value={ports?.securePort ?? ""} onChange={(event) => setPorts((current) => current ? { ...current, securePort: Number(event.target.value) || 0 } : current)} /></label>
+          <button type="button" className="secondary-button" disabled={savingPorts || !ports || !portsDirty} onClick={() => void savePorts()}>{savingPorts ? "Salvando..." : "Salvar portas"}</button>
+        </div>
+        {portsRestart && <p className="service-hint">Reinício necessário para aplicar {ports?.port}/{ports?.securePort}.</p>}
+      </section>
+
       <section className="deck-section">
         <div className="deck-heading">
-          <div><div className="section-kicker"><span>03</span> ATALHOS DO DECK</div><h2>Monte sua superfície de trabalho.</h2><p>O celular recebe apenas ações já aprovadas aqui.</p></div>
-          <div className="deck-heading-actions"><button type="button" className="secondary-button" onClick={addButton}><Icon name="plus" />Adicionar botão</button><button type="button" className="primary-button" disabled={saving || !draft} onClick={() => void save()}><Icon name="save" />{saving ? "Publicando..." : "Publicar alterações"}</button></div>
+          <div>
+            <h2 className="panel-title">Atalhos</h2>
+            <p>O celular recebe apenas o que você publicar aqui. Ícones sem nome ficam maiores na tela.</p>
+          </div>
+          <div className="deck-heading-actions">
+            <button type="button" className="secondary-button" onClick={() => addButton("application")}><Icon name="plus" />App</button>
+            <button type="button" className="secondary-button" onClick={() => addButton("url")}><Icon name="link" />Site</button>
+            <button type="button" className="primary-button" disabled={saving || !draft} onClick={() => void save()}><Icon name="save" />{saving ? "Publicando..." : "Publicar"}</button>
+          </div>
         </div>
 
         <div className="button-list">
-          {draft?.buttons.map((button, index) => <ButtonEditor key={button.id} button={button} index={index} total={draft.buttons.length} onChange={(next) => changeButton(index, next)} onMove={(direction) => moveButton(index, direction)} onRemove={() => setDraft({ ...draft, buttons: draft.buttons.filter((_, itemIndex) => itemIndex !== index) })} onPick={() => void pickTarget(index)} onPickIcon={() => void pickIcon(index)} onClearIcon={() => changeButton(index, { ...button, icon: null })} />)}
-          {draft?.buttons.length === 0 && <div className="empty-state"><span>+</span><h3>Seu deck está limpo.</h3><p>Adicione o primeiro atalho para começar.</p><button type="button" className="secondary-button" onClick={addButton}>Adicionar botão</button></div>}
+          {draft?.buttons.map((button, index) => (
+            <ButtonEditor
+              key={button.id}
+              button={button}
+              index={index}
+              total={draft.buttons.length}
+              fetchingIcon={fetchingIconId === button.id}
+              onChange={(next) => changeButton(index, next)}
+              onMove={(direction) => moveButton(index, direction)}
+              onRemove={() => setDraft({ ...draft, buttons: draft.buttons.filter((_, itemIndex) => itemIndex !== index) })}
+              onPick={() => void pickTarget(index)}
+              onPickIcon={() => void pickIcon(index)}
+              onClearIcon={() => changeButton(index, { ...button, icon: null })}
+              onFetchIcon={() => void fetchIcon(index)}
+            />
+          ))}
+          {draft?.buttons.length === 0 && (
+            <div className="empty-state">
+              <h3>Nenhum atalho ainda</h3>
+              <p>Adicione um aplicativo ou um site para começar.</p>
+              <div className="deck-heading-actions">
+                <button type="button" className="secondary-button" onClick={() => addButton("application")}>Adicionar app</button>
+                <button type="button" className="secondary-button" onClick={() => addButton("url")}>Adicionar site</button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
-      <footer><span>Open Productivity Deck</span><span>GPL-3.0-or-later · sem garantia · consulte LICENSE</span></footer>
+      <footer><span>Open Productivity Deck</span><span>GPL-3.0-or-later · sem garantia</span></footer>
     </main>
   );
 }

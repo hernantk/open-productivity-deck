@@ -1,6 +1,6 @@
 [package]
 name = "open-productivity-deck"
-version = "0.5.1"
+version = "0.6.0"
 description = "Um stream deck livre para produtividade"
 authors = ["Open Productivity Deck contributors"]
 license = "GPL-3.0-or-later"
@@ -35,6 +35,8 @@ tauri-plugin-dialog = "2"
 tokio = { version = "1", features = ["net", "sync", "time"] }
 time = { version = "0.3", default-features = false, features = ["std"] }
 tower-http = { version = "0.6", features = ["cors"] }
+ureq = { version = "2", default-features = false, features = ["tls"] }
+url = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 
 [target.'cfg(windows)'.dependencies]

@@ -20,6 +20,8 @@ pub struct DeckButton {
     pub color: String,
     #[serde(default)]
     pub icon: Option<String>,
+    #[serde(default)]
+    pub show_label: bool,
     pub unread_provider: Option<UnreadProvider>,
 }
 
@@ -50,6 +52,7 @@ impl Default for DeckConfig {
                     kind: LaunchKind::Url,
                     color: "#675a9e".into(),
                     icon: None,
+                    show_label: false,
                     unread_provider: Some(UnreadProvider::Teams),
                 },
                 DeckButton {
@@ -59,6 +62,7 @@ impl Default for DeckConfig {
                     kind: LaunchKind::Url,
                     color: "#286c64".into(),
                     icon: None,
+                    show_label: false,
                     unread_provider: Some(UnreadProvider::Whatsapp),
                 },
             ],
@@ -110,6 +114,8 @@ fn is_supported_icon(value: &str) -> bool {
         "data:image/jpeg;base64,",
         "data:image/webp;base64,",
         "data:image/svg+xml;base64,",
+        "data:image/x-icon;base64,",
+        "data:image/vnd.microsoft.icon;base64,",
     ]
     .iter()
     .any(|prefix| value.starts_with(prefix))

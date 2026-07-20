@@ -8,6 +8,7 @@ export interface DeckButton {
   kind: LaunchKind;
   color: string;
   icon: string | null;
+  showLabel: boolean;
   unreadProvider: UnreadProvider;
 }
 
@@ -15,6 +16,11 @@ export interface DeckConfig {
   version: number;
   title: string;
   buttons: DeckButton[];
+}
+
+export interface ServiceSettings {
+  port: number;
+  securePort: number;
 }
 
 export interface AudioState {
@@ -30,6 +36,7 @@ export interface DashboardState {
   localAddress: string;
   port: number;
   securePort: number;
+  serviceSettings: ServiceSettings;
   deviceId: string;
   deviceName: string;
   unread: Record<string, number | null>;

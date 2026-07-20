@@ -1,8 +1,10 @@
 mod audio;
 mod app_icon;
 mod config;
+mod favicon;
 mod launcher;
 mod server;
+mod service;
 mod spotify;
 mod state;
 mod tls;
@@ -11,6 +13,7 @@ mod unread;
 use audio::AudioState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use config::DeckConfig;
+use service::ServiceSettings;
 use std::{fs, path::Path};
 use state::{AppState, DashboardState};
 use tauri::{
@@ -27,6 +30,11 @@ fn get_dashboard_state(state: tauri::State<'_, AppState>) -> DashboardState {
 #[tauri::command]
 fn save_config(config: DeckConfig, state: tauri::State<'_, AppState>) -> Result<DeckConfig, String> {
     state.save_config(config)
+}
+
+#[tauri::command]
+fn save_service_settings(settings: ServiceSettings, state: tauri::State<'_, AppState>) -> Result<ServiceSettings, String> {
+    state.save_service_settings(settings)
 }
 
 #[tauri::command]
@@ -68,6 +76,11 @@ fn extract_app_icon(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn fetch_site_icon(url: String) -> Result<String, String> {
+    favicon::fetch_site_icon(&url)
+}
+
+#[tauri::command]
 fn regenerate_pairing(state: tauri::State<'_, AppState>) -> Result<String, String> {
     state.regenerate_pairing()
 }
@@ -92,11 +105,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_dashboard_state,
             save_config,
+            save_service_settings,
             set_output_volume,
             toggle_output_mute,
             toggle_input_mute,
             read_icon_data_url,
             extract_app_icon,
+            fetch_site_icon,
             regenerate_pairing
         ])
         .setup(move |app| {

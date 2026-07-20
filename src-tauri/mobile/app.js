@@ -355,10 +355,12 @@ function render(next) {
     elements.actions.append(empty);
   }
   next.buttons.forEach((button) => {
+    const showLabel = Boolean(button.showLabel);
     const element = document.createElement("button");
     element.type = "button";
-    element.className = "action";
+    element.className = showLabel ? "action" : "action icon-only";
     element.style.setProperty("--color", button.color);
+    element.setAttribute("aria-label", button.label);
     const glyph = document.createElement("span");
     glyph.className = "glyph";
     if (button.icon) {

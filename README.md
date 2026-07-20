@@ -13,8 +13,13 @@ Um deck de produtividade livre para Windows 10/11. O aplicativo desktop controla
 - Pareamento por QR Code com token aleatório revogável.
 - Seletor de computadores com múltiplas sessões salvas na mesma PWA.
 - Atalhos configuráveis para executáveis, arquivos, URLs e protocolos do Windows.
+- Ícones ocultos por padrão no celular; opção “Mostrar nome” por atalho.
 - Ícones personalizados em PNG, JPEG, WebP ou SVG para os aplicativos.
 - Importação automática do ícone ao selecionar um executável ou atalho do Windows.
+- Importação do favicon ao adicionar links de sites.
+- Portas HTTP/HTTPS configuráveis na interface (reinício necessário).
+- Modo claro e escuro no aplicativo desktop.
+- Atualização do instalador NSIS sem desinstalar a versão anterior.
 - Migração automática dos logos instalados do Teams e WhatsApp.
 - Execução em segundo plano pela bandeja do Windows.
 - Contadores experimentais de mensagens não lidas do Teams e WhatsApp.
@@ -72,10 +77,12 @@ Aplicativos instalados pela Microsoft Store podem ser abertos por seus protocolo
 
 ## Instalação PWA
 
-A PWA utiliza duas portas na rede local:
+A PWA utiliza duas portas na rede local (padrão):
 
 - `37621`: página HTTP usada somente para baixar o certificado e iniciar o pareamento.
 - `37622`: aplicação e API protegidas por HTTPS.
+
+As portas podem ser alteradas em **Portas do serviço** no aplicativo desktop. Também é possível definir `OPEN_PRODUCTIVITY_DECK_PORT` e `OPEN_PRODUCTIVITY_DECK_HTTPS_PORT`. Após mudar as portas, reinicie o aplicativo.
 
 No Android, instale o arquivo `.cer` como certificado de CA nas configurações de segurança. Depois, abra o aplicativo seguro e use **Instalar** no Chrome.
 
@@ -97,7 +104,9 @@ O servidor escuta as portas TCP `37621` e `37622` na rede local. O token contido
 
 O bootstrap usa HTTP, mas nenhuma ação de controle é aceita nele. A aplicação e a API funcionam somente no servidor HTTPS local. Não instale o certificado em dispositivos que você não controla e não use o aplicativo em redes públicas ou não confiáveis.
 
-A configuração fica no diretório de configuração do usuário, normalmente em `%APPDATA%\OpenProductivity\Open Productivity Deck\config\deck.json`.
+A configuração fica no diretório de configuração do usuário, normalmente em `%APPDATA%\OpenProductivity\Open Productivity Deck\config\deck.json`. As portas ficam em `service.json` no mesmo diretório.
+
+Ao atualizar, execute o novo instalador NSIS sobre a instalação existente. A atualização substitui os arquivos sem pedir desinstalação prévia.
 
 ## Contadores não lidos
 
