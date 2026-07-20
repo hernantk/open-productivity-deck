@@ -39,6 +39,8 @@ npm run tauri dev
 
 Na primeira execução, o Windows pode solicitar autorização para comunicação em redes privadas. Autorize apenas em redes confiáveis para permitir o acesso do celular.
 
+Quando existem vários adaptadores, o aplicativo prioriza a interface física Ethernet ou Wi-Fi ativa que possui gateway para a internet. Adaptadores de VPN, túneis e redes virtuais são ignorados na geração do endereço e do QR Code.
+
 ## Compilação
 
 ```powershell

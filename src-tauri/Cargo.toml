@@ -1,6 +1,6 @@
 [package]
 name = "open-productivity-deck"
-version = "0.5.0"
+version = "0.5.1"
 description = "Um stream deck livre para produtividade"
 authors = ["Open Productivity Deck contributors"]
 license = "GPL-3.0-or-later"
@@ -42,6 +42,9 @@ windows = { version = "0.62", features = [
   "Media_Control",
   "Win32_Foundation",
   "Win32_Media_Audio_Endpoints",
+  "Win32_NetworkManagement_IpHelper",
+  "Win32_NetworkManagement_Ndis",
+  "Win32_Networking_WinSock",
   "Win32_System_Com_StructuredStorage",
   "Win32_System_Variant",
   "Win32_System_WinRT"

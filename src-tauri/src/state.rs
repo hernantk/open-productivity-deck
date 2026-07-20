@@ -230,6 +230,11 @@ fn migrate_provider_logos(config: &mut DeckConfig, config_path: &Path) {
 }
 
 fn discover_local_ipv4() -> Ipv4Addr {
+    #[cfg(windows)]
+    if let Some(address) = select_network_interface(&windows_network_interfaces()) {
+        return address;
+    }
+
     local_ip_address::list_afinet_netifas()
         .ok()
         .and_then(|interfaces| select_local_ipv4(&interfaces))
@@ -238,6 +243,102 @@ fn discover_local_ipv4() -> Ipv4Addr {
             _ => None,
         })
         .unwrap_or(Ipv4Addr::LOCALHOST)
+}
+
+#[derive(Debug)]
+struct NetworkInterface {
+    name: String,
+    description: String,
+    address: Ipv4Addr,
+    has_gateway: bool,
+    metric: u32,
+    is_physical_lan: bool,
+}
+
+fn select_network_interface(interfaces: &[NetworkInterface]) -> Option<Ipv4Addr> {
+    interfaces
+        .iter()
+        .filter(|interface| {
+            is_usable(interface.address)
+                && interface.is_physical_lan
+                && !is_virtual_adapter(&interface.name)
+                && !is_virtual_adapter(&interface.description)
+        })
+        .min_by_key(|interface| (!interface.has_gateway, interface.metric))
+        .map(|interface| interface.address)
+}
+
+#[cfg(windows)]
+fn windows_network_interfaces() -> Vec<NetworkInterface> {
+    use std::mem::size_of;
+    use windows::Win32::{
+        Foundation::ERROR_BUFFER_OVERFLOW,
+        NetworkManagement::{
+            IpHelper::{
+                GetAdaptersAddresses, GAA_FLAG_INCLUDE_GATEWAYS, GAA_FLAG_SKIP_ANYCAST,
+                GAA_FLAG_SKIP_DNS_SERVER, GAA_FLAG_SKIP_MULTICAST, IP_ADAPTER_ADDRESSES_LH,
+                IF_TYPE_ETHERNET_CSMACD, IF_TYPE_IEEE80211,
+            },
+            Ndis::IfOperStatusUp,
+        },
+        Networking::WinSock::{AF_INET, SOCKADDR_IN, SOCKET_ADDRESS},
+    };
+
+    const INITIAL_BUFFER_SIZE: u32 = 15_000;
+    let flags = GAA_FLAG_INCLUDE_GATEWAYS
+        | GAA_FLAG_SKIP_ANYCAST
+        | GAA_FLAG_SKIP_DNS_SERVER
+        | GAA_FLAG_SKIP_MULTICAST;
+    let mut size = INITIAL_BUFFER_SIZE;
+
+    loop {
+        let word_count = (size as usize + size_of::<usize>() - 1) / size_of::<usize>();
+        let mut buffer = vec![0usize; word_count];
+        let first = buffer.as_mut_ptr().cast::<IP_ADAPTER_ADDRESSES_LH>();
+        let result = unsafe { GetAdaptersAddresses(AF_INET.0.into(), flags, None, Some(first), &mut size) };
+        if result == ERROR_BUFFER_OVERFLOW.0 {
+            continue;
+        }
+        if result != 0 {
+            return Vec::new();
+        }
+
+        let mut interfaces = Vec::new();
+        let mut current = first;
+        while let Some(adapter) = unsafe { current.as_ref() } {
+            if adapter.OperStatus == IfOperStatusUp {
+                let name = unsafe { adapter.FriendlyName.to_string().unwrap_or_default() };
+                let description = unsafe { adapter.Description.to_string().unwrap_or_default() };
+                let mut unicast = adapter.FirstUnicastAddress;
+                while let Some(address) = unsafe { unicast.as_ref() } {
+                    if let Some(address) = unsafe { socket_ipv4(&address.Address) } {
+                        interfaces.push(NetworkInterface {
+                            name: name.clone(),
+                            description: description.clone(),
+                            address,
+                            has_gateway: !adapter.FirstGatewayAddress.is_null(),
+                            metric: adapter.Ipv4Metric,
+                            is_physical_lan: matches!(adapter.IfType, IF_TYPE_ETHERNET_CSMACD | IF_TYPE_IEEE80211),
+                        });
+                    }
+                    unicast = address.Next;
+                }
+            }
+            current = adapter.Next;
+        }
+        return interfaces;
+    }
+
+    unsafe fn socket_ipv4(address: &SOCKET_ADDRESS) -> Option<Ipv4Addr> {
+        if address.lpSockaddr.is_null() || address.iSockaddrLength < size_of::<SOCKADDR_IN>() as i32 {
+            return None;
+        }
+        let address = unsafe { &*address.lpSockaddr.cast::<SOCKADDR_IN>() };
+        if address.sin_family != AF_INET {
+            return None;
+        }
+        Some(Ipv4Addr::from(unsafe { address.sin_addr.S_un.S_addr }.to_ne_bytes()))
+    }
 }
 
 fn configured_ports() -> (u16, u16) {
@@ -304,10 +405,16 @@ fn is_virtual_adapter(name: &str) -> bool {
         "bluetooth",
         "docker",
         "fortinet",
+        "globalprotect",
+        "hamachi",
         "hyper-v",
         "loopback",
+        "mullvad",
+        "nordlynx",
         "openvpn",
+        "protonvpn",
         "radmin",
+        "surfshark",
         "tap-",
         "tailscale",
         "tunnel",
@@ -315,6 +422,7 @@ fn is_virtual_adapter(name: &str) -> bool {
         "virtual",
         "vmware",
         "vpn",
+        "wireguard",
         "wintun",
         "wsl",
         "zerotier",
@@ -347,6 +455,70 @@ mod tests {
         ];
 
         assert_eq!(select_local_ipv4(&interfaces), Some(Ipv4Addr::new(10, 0, 0, 24)));
+    }
+
+    #[test]
+    fn prefers_physical_internet_adapter_over_generic_vpn_alias() {
+        let interfaces = vec![
+            NetworkInterface {
+                name: "Ethernet 3".into(),
+                description: "Fortinet SSL VPN Virtual Ethernet Adapter".into(),
+                address: Ipv4Addr::new(172, 23, 23, 1),
+                has_gateway: false,
+                metric: 1,
+                is_physical_lan: true,
+            },
+            NetworkInterface {
+                name: "Radmin VPN".into(),
+                description: "Famatech Radmin VPN Ethernet Adapter".into(),
+                address: Ipv4Addr::new(26, 207, 153, 147),
+                has_gateway: true,
+                metric: 1,
+                is_physical_lan: true,
+            },
+            NetworkInterface {
+                name: "Ethernet".into(),
+                description: "Realtek Gaming 2.5GbE Family Controller".into(),
+                address: Ipv4Addr::new(192, 168, 3, 8),
+                has_gateway: true,
+                metric: 25,
+                is_physical_lan: true,
+            },
+        ];
+
+        assert_eq!(select_network_interface(&interfaces), Some(Ipv4Addr::new(192, 168, 3, 8)));
+    }
+
+    #[test]
+    fn prioritizes_gateway_then_interface_metric() {
+        let interfaces = vec![
+            NetworkInterface {
+                name: "Ethernet".into(),
+                description: "Physical adapter".into(),
+                address: Ipv4Addr::new(192, 168, 10, 20),
+                has_gateway: false,
+                metric: 1,
+                is_physical_lan: true,
+            },
+            NetworkInterface {
+                name: "Wi-Fi".into(),
+                description: "Wireless adapter".into(),
+                address: Ipv4Addr::new(192, 168, 3, 9),
+                has_gateway: true,
+                metric: 35,
+                is_physical_lan: true,
+            },
+            NetworkInterface {
+                name: "Ethernet 2".into(),
+                description: "USB Ethernet adapter".into(),
+                address: Ipv4Addr::new(192, 168, 2, 9),
+                has_gateway: true,
+                metric: 25,
+                is_physical_lan: true,
+            },
+        ];
+
+        assert_eq!(select_network_interface(&interfaces), Some(Ipv4Addr::new(192, 168, 2, 9)));
     }
 
     #[test]
