@@ -97,7 +97,9 @@ impl DeckConfig {
             }
         }
 
-        self.version = 1;
+        if self.version == 0 {
+            self.version = 1;
+        }
         Ok(self)
     }
 }

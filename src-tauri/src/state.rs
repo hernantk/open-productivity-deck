@@ -1,4 +1,5 @@
 use crate::{
+    app_icon,
     audio::{self, AudioState},
     config::{self, DeckConfig, UnreadProvider},
     launcher,
@@ -77,7 +78,8 @@ impl AppState {
             .unwrap_or_else(|| config_dir.join("tls"));
         let config_path = config_dir.join("deck.json");
         let token_path = config_dir.join("auth-token");
-        let config = config::load(&config_path);
+        let mut config = config::load(&config_path);
+        migrate_provider_logos(&mut config, &config_path);
         let local_address = discover_local_ipv4().to_string();
         let token = load_or_create_token(&token_path);
         let (port, secure_port) = configured_ports();
@@ -177,6 +179,39 @@ impl AppState {
     pub fn subscribe_unread(&self) -> tokio::sync::broadcast::Receiver<()> {
         self.unread.subscribe()
     }
+}
+
+fn migrate_provider_logos(config: &mut DeckConfig, config_path: &Path) {
+    const LOGO_MIGRATION_VERSION: u32 = 2;
+    if config.version >= LOGO_MIGRATION_VERSION {
+        return;
+    }
+
+    let needs_teams = config.buttons.iter().any(|button| button.icon.is_none() && button.unread_provider == Some(UnreadProvider::Teams));
+    let needs_whatsapp = config.buttons.iter().any(|button| button.icon.is_none() && button.unread_provider == Some(UnreadProvider::Whatsapp));
+    let teams = needs_teams
+        .then(|| app_icon::extract_packaged_logo("MSTeams", r"Images\TeamsForWorkNewAppList.targetsize-256_altform-unplated.png").ok())
+        .flatten();
+    let whatsapp = needs_whatsapp
+        .then(|| app_icon::extract_packaged_logo("5319275A.WhatsAppDesktop", r"Assets\AppList.targetsize-256_altform-unplated.png").ok())
+        .flatten();
+
+    for button in &mut config.buttons {
+        if button.icon.is_some() {
+            continue;
+        }
+        button.icon = match button.unread_provider {
+            Some(UnreadProvider::Teams) => teams.clone(),
+            Some(UnreadProvider::Whatsapp) => whatsapp.clone(),
+            None => None,
+        };
+    }
+
+    let pending = config.buttons.iter().any(|button| button.icon.is_none() && button.unread_provider.is_some());
+    if !pending {
+        config.version = LOGO_MIGRATION_VERSION;
+    }
+    let _ = config::save(config_path, config);
 }
 
 fn discover_local_ipv4() -> Ipv4Addr {

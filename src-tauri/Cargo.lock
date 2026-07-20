@@ -2585,7 +2585,7 @@ dependencies = [
 
 [[package]]
 name = "open-productivity-deck"
-version = "0.4.2"
+version = "0.4.4"
 dependencies = [
  "async-stream",
  "axum",

@@ -13,6 +13,8 @@ Um deck de produtividade livre para Windows 10/11. O aplicativo desktop controla
 - Pareamento por QR Code com token aleatório revogável.
 - Atalhos configuráveis para executáveis, arquivos, URLs e protocolos do Windows.
 - Ícones personalizados em PNG, JPEG, WebP ou SVG para os aplicativos.
+- Importação automática do ícone ao selecionar um executável ou atalho do Windows.
+- Migração automática dos logos instalados do Teams e WhatsApp.
 - Execução em segundo plano pela bandeja do Windows.
 - Contadores experimentais de mensagens não lidas do Teams e WhatsApp.
 - Atualização em tempo real dos badges pelo canal SSE autenticado.
@@ -57,7 +59,7 @@ O instalador NSIS é criado em `src-tauri/target/release/bundle/nsis`.
 
 Fechar a janela pelo X mantém o deck e o servidor local funcionando. Clique no ícone da bandeja do Windows para abrir novamente; use **Sair** no menu da bandeja para encerrar completamente.
 
-Cada atalho pode receber uma imagem de até 256 KB. O conteúdo do ícone é incorporado à configuração, portanto o caminho original da imagem não é enviado ao celular.
+Ao selecionar um executável ou atalho, o aplicativo tenta importar automaticamente seu ícone associado. Também é possível escolher manualmente uma imagem de até 256 KB em PNG, JPEG, WebP ou SVG. O conteúdo do ícone é incorporado à configuração, portanto o caminho original não é enviado ao celular.
 
 O player do Spotify aparece abaixo dos controles de áudio no celular. Ele seleciona especificamente a sessão de mídia do Spotify no Windows, mostra a faixa atual e permite pausar, reproduzir, avançar ou voltar. Se o Spotify estiver fechado ou ainda não tiver iniciado uma música, o card permanece desabilitado.
 

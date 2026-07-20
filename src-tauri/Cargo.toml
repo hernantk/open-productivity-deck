@@ -1,6 +1,6 @@
 [package]
 name = "open-productivity-deck"
-version = "0.4.2"
+version = "0.4.4"
 description = "Um stream deck livre para produtividade"
 authors = ["Open Productivity Deck contributors"]
 license = "GPL-3.0-or-later"
