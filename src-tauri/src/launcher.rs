@@ -150,9 +150,10 @@ mod focus {
             UI::{
                 Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBD_EVENT_FLAGS, KEYBDINPUT, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_MENU},
                 WindowsAndMessaging::{
-                    BringWindowToTop, EnumWindows, GetForegroundWindow, GetWindow, GetWindowLongPtrW, GetWindowRect,
-                    GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
-                    SetForegroundWindow, ShowWindow, GWL_EXSTYLE, GW_OWNER, SW_MINIMIZE, SW_RESTORE, WINDOW_EX_STYLE,
+                    BringWindowToTop, EnumWindows, GetForegroundWindow, GetWindow, GetWindowLongPtrW, GetWindowPlacement,
+                    GetWindowRect, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
+                    SetForegroundWindow, SetWindowPlacement, ShowWindow, GWL_EXSTYLE, GW_OWNER, SW_MINIMIZE, SW_RESTORE,
+                    SW_SHOW, SW_SHOWMAXIMIZED, SW_SHOWNORMAL, WINDOW_EX_STYLE, WINDOWPLACEMENT, WPF_RESTORETOMAXIMIZED,
                     WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
                 },
             },
@@ -353,7 +354,13 @@ mod focus {
             return minimized;
         }
 
-        activate(group[0].hwnd)
+        // Restaura todas as janelas do grupo (ex.: Electron) e foca a melhor.
+        let mut restored = false;
+        for candidate in &group {
+            restored |= restore_window(candidate.hwnd);
+        }
+        force_foreground(group[0].hwnd);
+        restored || !unsafe { IsIconic(group[0].hwnd) }.as_bool()
     }
 
     fn minimize(hwnd: HWND) -> bool {
@@ -363,11 +370,37 @@ mod focus {
         }
     }
 
-    fn activate(hwnd: HWND) -> bool {
+    fn restore_window(hwnd: HWND) -> bool {
         unsafe {
-            let _ = ShowWindow(hwnd, SW_RESTORE);
-            force_foreground(hwnd);
-            !IsIconic(hwnd).as_bool() && (GetForegroundWindow() == hwnd || IsWindowVisible(hwnd).as_bool())
+            let mut placement = WINDOWPLACEMENT {
+                length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
+                ..Default::default()
+            };
+
+            let maximize = if GetWindowPlacement(hwnd, &mut placement).is_ok() {
+                placement.flags.contains(WPF_RESTORETOMAXIMIZED)
+                    || placement.showCmd == SW_SHOWMAXIMIZED.0 as u32
+            } else {
+                false
+            };
+
+            if IsIconic(hwnd).as_bool() {
+                let command = if maximize { SW_SHOWMAXIMIZED } else { SW_RESTORE };
+                let _ = ShowWindow(hwnd, command);
+
+                if IsIconic(hwnd).as_bool() {
+                    placement.showCmd = if maximize {
+                        SW_SHOWMAXIMIZED.0 as u32
+                    } else {
+                        SW_SHOWNORMAL.0 as u32
+                    };
+                    let _ = SetWindowPlacement(hwnd, &placement);
+                }
+            } else {
+                let _ = ShowWindow(hwnd, if maximize { SW_SHOWMAXIMIZED } else { SW_SHOW });
+            }
+
+            !IsIconic(hwnd).as_bool()
         }
     }
 
@@ -387,9 +420,8 @@ mod focus {
                 target_thread != 0 && target_thread != current_thread && AttachThreadInput(current_thread, target_thread, true).as_bool();
 
             tap_alt();
-            let _ = SetForegroundWindow(hwnd);
             let _ = BringWindowToTop(hwnd);
-            let _ = ShowWindow(hwnd, SW_RESTORE);
+            let _ = SetForegroundWindow(hwnd);
 
             if attached_tg {
                 let _ = AttachThreadInput(current_thread, target_thread, false);

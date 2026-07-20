@@ -1,5 +1,7 @@
 export type LaunchKind = "application" | "url";
 export type UnreadProvider = "teams" | "whatsapp" | null;
+export type ThemeMode = "light" | "dark";
+export type GridSize = 3 | 4 | 5;
 
 export interface DeckButton {
   id: string;
@@ -16,6 +18,8 @@ export interface DeckButton {
 export interface DeckConfig {
   version: number;
   title: string;
+  theme: ThemeMode;
+  gridSize: GridSize;
   buttons: DeckButton[];
 }
 

@@ -8,6 +8,9 @@ Um deck de produtividade livre para Windows 10/11. O aplicativo desktop controla
 - Botão para mutar e restaurar o som.
 - Controle independente para mutar o microfone padrão.
 - Painel mobile aberto pelo navegador, sem aplicativo adicional.
+- Tela inicial do desktop com a grade do deck; configurações, áudio e pareamento em tela separada.
+- Tema claro/escuro sincronizado entre desktop e PWA.
+- Grade configurável em 3×3, 4×4 ou 5×5.
 - Layout mobile otimizado para uso horizontal, sem barra superior.
 - Instalação como PWA por HTTPS local.
 - Pareamento por QR Code com token aleatório revogável.

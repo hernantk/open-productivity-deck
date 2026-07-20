@@ -2,14 +2,12 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { QRCodeSVG } from "qrcode.react";
-import type { AudioState, DashboardState, DeckButton, DeckConfig, ServiceSettings } from "./types";
+import type { AudioState, DashboardState, DeckButton, DeckConfig, GridSize, ServiceSettings, ThemeMode } from "./types";
 
 const ACCENTS = ["#e9592f", "#286c64", "#d39a22", "#675a9e", "#a63d53", "#3f658c"];
-const THEME_KEY = "opd-theme";
+type Screen = "deck" | "settings";
 
-type Theme = "light" | "dark";
-
-function Icon({ name }: { name: "volume" | "mute" | "microphone" | "phone" | "plus" | "save" | "refresh" | "folder" | "up" | "down" | "trash" | "image" | "globe" | "sun" | "moon" | "link" }) {
+function Icon({ name }: { name: "volume" | "mute" | "microphone" | "phone" | "plus" | "save" | "refresh" | "folder" | "up" | "down" | "trash" | "image" | "globe" | "sun" | "moon" | "link" | "settings" | "back" }) {
   const paths = {
     volume: <><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></>,
     mute: <><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m16 10 6 6m0-6-6 6"/></>,
@@ -27,14 +25,10 @@ function Icon({ name }: { name: "volume" | "mute" | "microphone" | "phone" | "pl
     sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></>,
     moon: <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3 7 7 0 0 0 21 14.5Z"/>,
     link: <><path d="M10 13a5 5 0 0 0 7.07 0l2.12-2.12a5 5 0 0 0-7.07-7.07L11 5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.8 13.12a5 5 0 0 0 7.07 7.07L13 19"/></>,
+    settings: <><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></>,
+    back: <path d="M15 6 9 12l6 6"/>,
   };
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
-}
-
-function readTheme(): Theme {
-  const stored = localStorage.getItem(THEME_KEY);
-  if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 function VolumeDial({ audio, onChange }: { audio: AudioState | null; onChange: (value: number) => void }) {
@@ -83,18 +77,25 @@ function VolumeDial({ audio, onChange }: { audio: AudioState | null; onChange: (
   );
 }
 
-function ActionPreview({ button, unread }: { button: DeckButton; unread: number | null | undefined }) {
+function DeckTile({ button, unread, onClick }: { button: DeckButton; unread: number | null | undefined; onClick: () => void }) {
   const initials = button.label.trim().split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "?";
-  const classes = [
-    "action-preview",
-    button.showLabel ? "" : "icon-only",
-    button.transparentBackground ? "transparent-bg" : "",
-  ].filter(Boolean).join(" ");
+  const classes = ["deck-tile", button.showLabel ? "" : "icon-only", button.transparentBackground ? "transparent-bg" : ""].filter(Boolean).join(" ");
+  return (
+    <button type="button" className={classes} style={{ "--button-color": button.color } as React.CSSProperties} title={button.label} aria-label={button.label} onClick={onClick}>
+      <span className="deck-glyph">{button.icon ? <img src={button.icon} alt="" /> : initials}</span>
+      {button.showLabel && <span className="deck-label">{button.label}</span>}
+      {typeof unread === "number" && unread > 0 && <b className="unread-badge">{unread > 99 ? "99+" : unread}</b>}
+    </button>
+  );
+}
+
+function ActionPreview({ button }: { button: DeckButton }) {
+  const initials = button.label.trim().split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "?";
+  const classes = ["action-preview", button.showLabel ? "" : "icon-only", button.transparentBackground ? "transparent-bg" : ""].filter(Boolean).join(" ");
   return (
     <div className={classes} style={{ "--button-color": button.color } as React.CSSProperties} title={button.label || "Sem nome"}>
       <span className="action-glyph">{button.icon ? <img src={button.icon} alt="" /> : initials}</span>
       {button.showLabel && <span className="action-name">{button.label || "Sem nome"}</span>}
-      {typeof unread === "number" && unread > 0 && <b className="unread-badge">{unread > 99 ? "99+" : unread}</b>}
     </div>
   );
 }
@@ -114,7 +115,7 @@ function ButtonEditor({ button, index, total, fetchingIcon, onChange, onMove, on
 }) {
   return (
     <article className="button-editor">
-      <ActionPreview button={button} unread={null} />
+      <ActionPreview button={button} />
       <div className="editor-fields">
         <label>Nome<input value={button.label} maxLength={32} onChange={(event) => onChange({ ...button, label: event.target.value })} /></label>
         <label>Tipo<select value={button.kind} onChange={(event) => onChange({ ...button, kind: event.target.value as DeckButton["kind"] })}><option value="application">Aplicativo ou arquivo</option><option value="url">Site, endereço ou protocolo</option></select></label>
@@ -134,7 +135,21 @@ function ButtonEditor({ button, index, total, fetchingIcon, onChange, onMove, on
   );
 }
 
+function normalizeConfig(config: DeckConfig): DeckConfig {
+  return {
+    ...config,
+    theme: config.theme === "dark" ? "dark" : "light",
+    gridSize: ([3, 4, 5].includes(config.gridSize) ? config.gridSize : 4) as GridSize,
+    buttons: config.buttons.map((button) => ({
+      ...button,
+      showLabel: Boolean(button.showLabel),
+      transparentBackground: Boolean(button.transparentBackground),
+    })),
+  };
+}
+
 export default function App() {
+  const [screen, setScreen] = useState<Screen>("deck");
   const [dashboard, setDashboard] = useState<DashboardState | null>(null);
   const [draft, setDraft] = useState<DeckConfig | null>(null);
   const [ports, setPorts] = useState<ServiceSettings | null>(null);
@@ -142,19 +157,22 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [savingPorts, setSavingPorts] = useState(false);
   const [fetchingIconId, setFetchingIconId] = useState<string | null>(null);
-  const [theme, setTheme] = useState<Theme>(() => readTheme());
   const volumeTimer = useRef<number | null>(null);
+
+  const live = dashboard?.config ? normalizeConfig(dashboard.config) : null;
+  const theme = (draft?.theme ?? live?.theme ?? "light") as ThemeMode;
+  const gridSize = (live?.gridSize ?? 4) as GridSize;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
   async function loadState(silent = false) {
     try {
       const next = await invoke<DashboardState>("get_dashboard_state");
-      setDashboard(next);
-      setDraft((current) => current ?? next.config);
+      const config = normalizeConfig(next.config);
+      setDashboard({ ...next, config });
+      setDraft((current) => current ?? config);
       setPorts((current) => current ?? next.serviceSettings);
       if (!silent) setStatus("Serviço local pronto");
     } catch (error) {
@@ -171,19 +189,34 @@ export default function App() {
     };
   }, []);
 
-  async function save() {
-    if (!draft) return;
+  async function publish(config: DeckConfig, message = "Alterações publicadas no celular") {
     setSaving(true);
     try {
-      const config = await invoke<DeckConfig>("save_config", { config: draft });
-      setDraft(config);
-      setDashboard((current) => current ? { ...current, config } : current);
-      setStatus("Alterações publicadas no celular");
+      const saved = normalizeConfig(await invoke<DeckConfig>("save_config", { config }));
+      setDraft(saved);
+      setDashboard((current) => current ? { ...current, config: saved } : current);
+      setStatus(message);
+      return saved;
     } catch (error) {
       setStatus(`Falha ao salvar: ${String(error)}`);
+      return null;
     } finally {
       setSaving(false);
     }
+  }
+
+  async function save() {
+    if (!draft) return;
+    await publish(normalizeConfig(draft));
+  }
+
+  async function toggleTheme() {
+    const nextTheme: ThemeMode = theme === "dark" ? "light" : "dark";
+    const base = draft ?? live;
+    if (!base) return;
+    const next = normalizeConfig({ ...base, theme: nextTheme });
+    setDraft(next);
+    await publish(next, nextTheme === "dark" ? "Modo escuro publicado" : "Modo claro publicado");
   }
 
   async function savePorts() {
@@ -293,6 +326,10 @@ export default function App() {
 
   function addButton(kind: DeckButton["kind"] = "application") {
     if (!draft) return;
+    if (draft.buttons.length >= 25) {
+      setStatus("Limite de 25 atalhos atingido");
+      return;
+    }
     setDraft({
       ...draft,
       buttons: [...draft.buttons, {
@@ -307,6 +344,14 @@ export default function App() {
         unreadProvider: null,
       }],
     });
+  }
+
+  async function launchTile(id: string) {
+    try {
+      await invoke("launch_button", { id });
+    } catch (error) {
+      setStatus(`Falha ao abrir: ${String(error)}`);
+    }
   }
 
   async function regeneratePairing() {
@@ -325,18 +370,69 @@ export default function App() {
   const portsDirty = ports && dashboard && (ports.port !== dashboard.serviceSettings.port || ports.securePort !== dashboard.serviceSettings.securePort);
   const portsRestart = ports && dashboard && (ports.port !== dashboard.port || ports.securePort !== dashboard.securePort);
 
+  if (screen === "deck") {
+    return (
+      <main className="deck-screen">
+        <header className="deck-topbar">
+          <div className="brand-block">
+            <div className="brand-mark">OP</div>
+            <div>
+              <p>OPEN PRODUCTIVITY</p>
+              <h1>{live?.title || "Deck"}</h1>
+            </div>
+          </div>
+          <div className="topbar-tools">
+            <button type="button" className="theme-toggle" onClick={() => void toggleTheme()} aria-label={theme === "dark" ? "Usar modo claro" : "Usar modo escuro"}>
+              <Icon name={theme === "dark" ? "sun" : "moon"} />
+            </button>
+            <button type="button" className="theme-toggle" onClick={() => setScreen("settings")} aria-label="Abrir configurações">
+              <Icon name="settings" />
+            </button>
+          </div>
+        </header>
+
+        <section className="deck-stage">
+          <div className="deck-grid" style={{ "--grid-size": String(gridSize) } as React.CSSProperties}>
+            {live?.buttons.map((button) => (
+              <DeckTile
+                key={button.id}
+                button={button}
+                unread={button.unreadProvider ? dashboard?.unread[button.unreadProvider] : null}
+                onClick={() => void launchTile(button.id)}
+              />
+            ))}
+            {(!live || live.buttons.length === 0) && (
+              <div className="deck-empty">
+                <h2>Nenhum atalho publicado</h2>
+                <p>Abra as configurações para montar o deck do celular.</p>
+                <button type="button" className="primary-button" onClick={() => setScreen("settings")}>Abrir configurações</button>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <footer className="deck-footer">
+          <span className={`service-status inline`}><span className={dashboard ? "online" : ""} />{status}</span>
+          <span>{gridSize}×{gridSize}</span>
+        </footer>
+      </main>
+    );
+  }
+
   return (
-    <main>
+    <main className="settings-screen">
       <header className="topbar">
         <div className="brand-block">
-          <div className="brand-mark">OP</div>
+          <button type="button" className="theme-toggle" onClick={() => setScreen("deck")} aria-label="Voltar ao deck">
+            <Icon name="back" />
+          </button>
           <div>
-            <p>OPEN PRODUCTIVITY</p>
+            <p>CONFIGURAÇÕES</p>
             <h1>Deck</h1>
           </div>
         </div>
         <div className="topbar-tools">
-          <button type="button" className="theme-toggle" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} aria-label={theme === "dark" ? "Usar modo claro" : "Usar modo escuro"}>
+          <button type="button" className="theme-toggle" onClick={() => void toggleTheme()} aria-label={theme === "dark" ? "Usar modo claro" : "Usar modo escuro"}>
             <Icon name={theme === "dark" ? "sun" : "moon"} />
           </button>
           <div className="service-status"><span className={dashboard ? "online" : ""} />{status}</div>
@@ -368,6 +464,28 @@ export default function App() {
         </div>
       </section>
 
+      <section className="service-section appearance-section">
+        <div className="service-copy">
+          <h2 className="panel-title">Aparência</h2>
+          <p>Tema e grade do deck no computador e no celular.</p>
+        </div>
+        <div className="appearance-fields">
+          <label>Grade
+            <select
+              value={draft?.gridSize ?? 4}
+              onChange={(event) => draft && setDraft({ ...draft, gridSize: Number(event.target.value) as GridSize })}
+            >
+              <option value={3}>3×3</option>
+              <option value={4}>4×4</option>
+              <option value={5}>5×5</option>
+            </select>
+          </label>
+          <label className="toggle-field"><span>Modo escuro</span>
+            <button type="button" className={`toggle ${theme === "dark" ? "on" : ""}`} role="switch" aria-checked={theme === "dark"} onClick={() => void toggleTheme()}><i /></button>
+          </label>
+        </div>
+      </section>
+
       <section className="service-section">
         <div className="service-copy">
           <h2 className="panel-title">Portas do serviço</h2>
@@ -385,7 +503,7 @@ export default function App() {
         <div className="deck-heading">
           <div>
             <h2 className="panel-title">Atalhos</h2>
-            <p>O celular recebe apenas o que você publicar aqui. Ícones sem nome ficam maiores na tela.</p>
+            <p>Publique para atualizar a grade do celular e a tela inicial.</p>
           </div>
           <div className="deck-heading-actions">
             <button type="button" className="secondary-button" onClick={() => addButton("application")}><Icon name="plus" />App</button>
@@ -424,7 +542,7 @@ export default function App() {
         </div>
       </section>
 
-      <footer><span>Open Productivity Deck</span><span>GPL-3.0-or-later · sem garantia</span></footer>
+      <footer><span>Open Productivity Deck 0.7.0</span><span>GPL-3.0-or-later · sem garantia</span></footer>
     </main>
   );
 }

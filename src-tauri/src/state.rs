@@ -58,6 +58,8 @@ pub struct RemoteState {
     pub device_id: String,
     pub device_name: String,
     pub title: String,
+    pub theme: crate::config::ThemeMode,
+    pub grid_size: u8,
     pub buttons: Vec<RemoteButton>,
     pub audio: Option<AudioState>,
     pub spotify: SpotifyState,
@@ -138,6 +140,8 @@ impl AppState {
             device_id: self.device_id.clone(),
             device_name: self.device_name.clone(),
             title: config.title.clone(),
+            theme: config.theme,
+            grid_size: config.grid_size,
             buttons: config
                 .buttons
                 .iter()

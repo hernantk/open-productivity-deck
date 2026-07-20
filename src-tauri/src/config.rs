@@ -7,7 +7,23 @@ use uuid::Uuid;
 pub struct DeckConfig {
     pub version: u32,
     pub title: String,
+    #[serde(default)]
+    pub theme: ThemeMode,
+    #[serde(default = "default_grid_size")]
+    pub grid_size: u8,
     pub buttons: Vec<DeckButton>,
+}
+
+fn default_grid_size() -> u8 {
+    4
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ThemeMode {
+    #[default]
+    Light,
+    Dark,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -46,6 +62,8 @@ impl Default for DeckConfig {
         Self {
             version: 1,
             title: "Meu deck".into(),
+            theme: ThemeMode::Light,
+            grid_size: default_grid_size(),
             buttons: vec![
                 DeckButton {
                     id: Uuid::new_v4(),
@@ -76,8 +94,12 @@ impl Default for DeckConfig {
 
 impl DeckConfig {
     pub fn validate(mut self) -> Result<Self, String> {
-        if self.buttons.len() > 48 {
-            return Err("O deck aceita no máximo 48 botões".into());
+        if ![3, 4, 5].contains(&self.grid_size) {
+            self.grid_size = default_grid_size();
+        }
+
+        if self.buttons.len() > 25 {
+            return Err("O deck aceita no máximo 25 atalhos".into());
         }
 
         self.title = self.title.trim().chars().take(64).collect();
@@ -165,5 +187,13 @@ mod tests {
     fn accepts_six_digit_colors() {
         assert!(is_hex_color("#e9592f"));
         assert!(!is_hex_color("orange"));
+    }
+
+    #[test]
+    fn clamps_invalid_grid_size() {
+        let mut config = DeckConfig::default();
+        config.grid_size = 6;
+        let validated = config.validate().unwrap();
+        assert_eq!(validated.grid_size, 4);
     }
 }

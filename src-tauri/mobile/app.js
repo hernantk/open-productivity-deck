@@ -324,6 +324,11 @@ function initials(label) {
 function render(next) {
   state = next;
   document.title = `${next.title} · Productivity Deck`;
+  const theme = next.theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = theme;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#121816" : "#17211f");
+  const gridSize = [3, 4, 5].includes(Number(next.gridSize)) ? Number(next.gridSize) : 4;
+  document.documentElement.style.setProperty("--grid-size", String(gridSize));
   elements.connection.classList.add("online");
   elements.connection.querySelector("span").textContent = next.deviceName || "local";
 

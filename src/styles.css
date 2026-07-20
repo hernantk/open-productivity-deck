@@ -648,3 +648,146 @@ footer {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* —— Tela do deck (réplica do celular) —— */
+.deck-screen {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(1100px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 20px clamp(16px, 3vw, 40px) 18px;
+}
+
+.deck-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.deck-stage {
+  min-height: 0;
+  padding: 22px 0;
+  overflow: auto;
+}
+
+.deck-grid {
+  --grid-size: 4;
+  display: grid;
+  grid-template-columns: repeat(var(--grid-size), minmax(0, 1fr));
+  gap: clamp(10px, 1.6vw, 16px);
+  align-content: start;
+  min-height: 100%;
+}
+
+.deck-tile {
+  --button-color: var(--accent);
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  min-height: 92px;
+  padding: 12px;
+  border: 0;
+  color: #f7f2ea;
+  background: var(--button-color);
+  text-align: left;
+  font-size: .78rem;
+  font-weight: 800;
+  line-height: 1.15;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 12%);
+  transition: transform 120ms ease, filter 120ms ease;
+}
+.deck-tile:hover { filter: brightness(1.05); }
+.deck-tile:active { transform: scale(.97); filter: brightness(.9); }
+.deck-tile.icon-only {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  aspect-ratio: 1;
+  min-height: 0;
+  padding: 16px;
+}
+.deck-tile.transparent-bg {
+  color: var(--ink);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.deck-glyph {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgb(255 255 255 / 45%);
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: 1rem;
+}
+.deck-tile.icon-only .deck-glyph { width: 58%; height: 58%; max-width: 72px; max-height: 72px; }
+.deck-tile.transparent-bg .deck-glyph { border-color: color-mix(in oklab, var(--ink) 18%, transparent); }
+.deck-glyph img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
+.deck-label { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+.deck-empty {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  place-items: start;
+  padding: 48px 8px;
+}
+.deck-empty h2 {
+  margin: 0;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: 1.6rem;
+  font-weight: 650;
+}
+.deck-empty p { margin: 0 0 12px; color: var(--muted); font-size: .84rem; }
+
+.deck-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.service-status.inline { max-width: none; margin: 0; text-align: left; }
+
+.appearance-section { align-items: center; }
+.appearance-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 14px;
+}
+.appearance-fields label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: .6rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.appearance-fields select {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--field-border);
+  color: var(--ink);
+  background: var(--field-fill);
+  font-size: .78rem;
+}
+
+@media (max-width: 720px) {
+  .deck-grid { gap: 8px; }
+  .deck-tile { min-height: 72px; padding: 8px; font-size: .7rem; }
+  .deck-glyph { width: 40px; height: 40px; }
+}

@@ -85,6 +85,11 @@ fn regenerate_pairing(state: tauri::State<'_, AppState>) -> Result<String, Strin
     state.regenerate_pairing()
 }
 
+#[tauri::command]
+fn launch_button(id: uuid::Uuid, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state.launch(id)
+}
+
 fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -112,7 +117,8 @@ pub fn run() {
             read_icon_data_url,
             extract_app_icon,
             fetch_site_icon,
-            regenerate_pairing
+            regenerate_pairing,
+            launch_button
         ])
         .setup(move |app| {
             tauri::async_runtime::spawn(async move {
