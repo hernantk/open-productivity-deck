@@ -1,4 +1,5 @@
 mod audio;
+mod app_icon;
 mod config;
 mod launcher;
 mod server;
@@ -62,6 +63,11 @@ fn read_icon_data_url(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn extract_app_icon(path: String) -> Result<String, String> {
+    app_icon::extract(&path)
+}
+
+#[tauri::command]
 fn regenerate_pairing(state: tauri::State<'_, AppState>) -> Result<String, String> {
     state.regenerate_pairing()
 }
@@ -90,6 +96,7 @@ pub fn run() {
             toggle_output_mute,
             toggle_input_mute,
             read_icon_data_url,
+            extract_app_icon,
             regenerate_pairing
         ])
         .setup(move |app| {

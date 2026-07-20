@@ -203,7 +203,16 @@ export default function App() {
   async function pickTarget(index: number) {
     if (!draft) return;
     const selected = await open({ multiple: false, directory: false, title: "Escolha um aplicativo ou atalho", filters: [{ name: "Aplicativos e atalhos", extensions: ["exe", "lnk", "bat", "cmd"] }] });
-    if (typeof selected === "string") changeButton(index, { ...draft.buttons[index], target: selected });
+    if (typeof selected !== "string") return;
+    const button = { ...draft.buttons[index], target: selected };
+    try {
+      const icon = await invoke<string>("extract_app_icon", { path: selected });
+      changeButton(index, { ...button, icon });
+      setStatus("Aplicativo e ícone importados; publique para enviar ao celular");
+    } catch {
+      changeButton(index, button);
+      setStatus("Aplicativo selecionado; o Windows não forneceu um ícone utilizável");
+    }
   }
 
   async function pickIcon(index: number) {

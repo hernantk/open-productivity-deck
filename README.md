@@ -4,7 +4,7 @@ Um deck de produtividade livre para Windows 10/11. O aplicativo desktop controla
 
 ## Recursos
 
-- Controle circular do volume de saída padrão do Windows.
+- Controle circular do volume com marcador, área neutra e feedback tátil no celular.
 - Botão para mutar e restaurar o som.
 - Controle independente para mutar o microfone padrão.
 - Painel mobile aberto pelo navegador, sem aplicativo adicional.
