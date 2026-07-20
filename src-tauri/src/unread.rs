@@ -1,7 +1,9 @@
 use crate::config::UnreadProvider;
 use regex::Regex;
+use rusqlite::{Connection, OpenFlags};
 use std::{
     collections::HashMap,
+    path::PathBuf,
     process::Command,
     sync::{LazyLock, Mutex},
 };
@@ -13,6 +15,10 @@ static COUNT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)(?:\(|\b)(\d{1,4})(?:\)|\s+(?:new|unread|não\s+lidas?|novas?))")
         .expect("valid unread pattern")
 });
+static BADGE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)<badge\s+[^>]*value\s*=\s*["'](\d{1,6})["']"#)
+        .expect("valid badge pattern")
+});
 
 #[derive(Default)]
 pub struct UnreadCache {
@@ -21,7 +27,10 @@ pub struct UnreadCache {
 
 impl UnreadCache {
     pub fn refresh(&self) {
-        let counts = read_process_titles();
+        let mut counts = read_notification_badges();
+        for (provider, count) in read_process_titles() {
+            counts.entry(provider).or_insert(count);
+        }
         if let Ok(mut cache) = self.inner.lock() {
             *cache = counts;
         }
@@ -35,7 +44,7 @@ impl UnreadCache {
 fn read_process_titles() -> HashMap<UnreadProvider, Option<u32>> {
     let mut found: HashMap<UnreadProvider, bool> = HashMap::new();
     let mut counts: HashMap<UnreadProvider, u32> = HashMap::new();
-    let processes = ["ms-teams.exe", "teams.exe", "msteams.exe", "WhatsApp.exe"];
+    let processes = ["ms-teams.exe", "teams.exe", "msteams.exe", "WhatsApp.exe", "WhatsApp.Root.exe"];
 
     for process_filter in processes {
         let mut command = Command::new("tasklist");
@@ -57,7 +66,7 @@ fn read_process_titles() -> HashMap<UnreadProvider, Option<u32>> {
             let title = record.get(8).unwrap_or_default();
             let provider = if matches!(process.as_str(), "ms-teams.exe" | "teams.exe" | "msteams.exe") {
                 Some(UnreadProvider::Teams)
-            } else if process == "whatsapp.exe" {
+            } else if matches!(process.as_str(), "whatsapp.exe" | "whatsapp.root.exe") {
                 Some(UnreadProvider::Whatsapp)
             } else {
                 None
@@ -72,6 +81,71 @@ fn read_process_titles() -> HashMap<UnreadProvider, Option<u32>> {
     }
 
     found.into_iter().map(|(provider, _)| (provider, Some(*counts.get(&provider).unwrap_or(&0)))).collect()
+}
+
+fn read_notification_badges() -> HashMap<UnreadProvider, Option<u32>> {
+    let Some(database_path) = notification_database_path() else {
+        return HashMap::new();
+    };
+    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    let Ok(connection) = Connection::open_with_flags(database_path, flags) else {
+        return HashMap::new();
+    };
+    let Ok(mut statement) = connection.prepare(
+        "SELECT h.PrimaryId, n.Payload
+         FROM Notification n
+         INNER JOIN NotificationHandler h ON h.RecordId = n.HandlerId
+         WHERE n.Type = 'badge'
+           AND (LOWER(h.PrimaryId) LIKE '%teams%' OR LOWER(h.PrimaryId) LIKE '%whatsapp%')
+         ORDER BY n.ArrivalTime DESC",
+    ) else {
+        return HashMap::new();
+    };
+    let Ok(rows) = statement.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+    }) else {
+        return HashMap::new();
+    };
+
+    let mut counts = HashMap::new();
+    for row in rows.flatten() {
+        let Some(provider) = provider_from_identifier(&row.0) else {
+            continue;
+        };
+        if counts.contains_key(&provider) {
+            continue;
+        }
+        let payload = String::from_utf8_lossy(&row.1);
+        if let Some(count) = parse_badge(&payload) {
+            counts.insert(provider, Some(count));
+        }
+    }
+    counts
+}
+
+fn notification_database_path() -> Option<PathBuf> {
+    std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .map(|path| path.join("Microsoft").join("Windows").join("Notifications").join("wpndatabase.db"))
+        .filter(|path| path.exists())
+}
+
+fn provider_from_identifier(identifier: &str) -> Option<UnreadProvider> {
+    let identifier = identifier.to_ascii_lowercase();
+    if identifier.contains("teams") {
+        Some(UnreadProvider::Teams)
+    } else if identifier.contains("whatsapp") {
+        Some(UnreadProvider::Whatsapp)
+    } else {
+        None
+    }
+}
+
+fn parse_badge(payload: &str) -> Option<u32> {
+    BADGE_PATTERN
+        .captures(payload)
+        .and_then(|capture| capture.get(1))
+        .and_then(|value| value.as_str().parse().ok())
 }
 
 fn parse_count(title: &str) -> Option<u32> {
@@ -94,5 +168,18 @@ mod tests {
     #[test]
     fn ignores_titles_without_a_counter() {
         assert_eq!(parse_count("Microsoft Teams"), None);
+    }
+
+    #[test]
+    fn reads_numeric_windows_badges() {
+        assert_eq!(parse_badge(r#"<badge value="17"/>"#), Some(17));
+        assert_eq!(parse_badge(r#"<badge value="0"/>"#), Some(0));
+        assert_eq!(parse_badge(r#"<badge value="activity"/>"#), None);
+    }
+
+    #[test]
+    fn recognizes_current_store_app_identifiers() {
+        assert_eq!(provider_from_identifier("MSTeams_8wekyb3d8bbwe!MSTeams"), Some(UnreadProvider::Teams));
+        assert_eq!(provider_from_identifier("5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App"), Some(UnreadProvider::Whatsapp));
     }
 }

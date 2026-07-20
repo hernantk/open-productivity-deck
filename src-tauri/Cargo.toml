@@ -1,6 +1,6 @@
 [package]
 name = "open-productivity-deck"
-version = "0.3.0"
+version = "0.3.1"
 description = "Um stream deck livre para produtividade"
 authors = ["Open Productivity Deck contributors"]
 license = "GPL-3.0-or-later"
@@ -22,6 +22,7 @@ directories = "6"
 local-ip-address = "0.6"
 open = "5"
 regex = "1.11"
+rusqlite = { version = "0.37", features = ["bundled"] }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "x509-parser"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rustls-pki-types = "1.15"

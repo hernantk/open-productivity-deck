@@ -88,11 +88,11 @@ A configuração fica no diretório de configuração do usuário, normalmente e
 
 ## Contadores não lidos
 
-Teams e WhatsApp não oferecem uma API pública estável para consultar mensagens não lidas de contas pessoais no desktop. Esta versão procura números nos títulos das janelas dos processos locais:
+Teams e WhatsApp não oferecem uma API pública estável para consultar mensagens não lidas de contas pessoais no desktop. Esta versão consulta somente os badges numéricos mantidos pela central de notificações do Windows e usa os títulos das janelas como fallback:
 
-- Nenhum conteúdo de mensagem é lido.
-- Um aplicativo fechado aparece sem contador.
-- Um aplicativo aberto sem número detectável aparece como zero.
+- O conteúdo das notificações e das mensagens não é consultado.
+- O contador continua disponível quando o aplicativo está fechado, desde que o badge permaneça registrado pelo Windows.
+- Se o Windows não oferecer um badge numérico, o aplicativo aberto aparece como zero.
 - Atualizações do Teams ou WhatsApp podem interromper a detecção.
 
 ## Licença
