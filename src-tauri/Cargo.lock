@@ -2585,7 +2585,7 @@ dependencies = [
 
 [[package]]
 name = "open-productivity-deck"
-version = "0.4.4"
+version = "0.5.0"
 dependencies = [
  "async-stream",
  "axum",
@@ -2608,6 +2608,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "time",
  "tokio",
+ "tower-http",
  "uuid",
  "windows 0.62.2",
 ]

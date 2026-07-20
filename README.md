@@ -11,6 +11,7 @@ Um deck de produtividade livre para Windows 10/11. O aplicativo desktop controla
 - Layout mobile otimizado para uso horizontal, sem barra superior.
 - Instalação como PWA por HTTPS local.
 - Pareamento por QR Code com token aleatório revogável.
+- Seletor de computadores com múltiplas sessões salvas na mesma PWA.
 - Atalhos configuráveis para executáveis, arquivos, URLs e protocolos do Windows.
 - Ícones personalizados em PNG, JPEG, WebP ou SVG para os aplicativos.
 - Importação automática do ícone ao selecionar um executável ou atalho do Windows.
@@ -57,6 +58,8 @@ O instalador NSIS é criado em `src-tauri/target/release/bundle/nsis`.
 6. Configure novos botões no computador e selecione **Publicar alterações**.
 7. Use **Invalidar e gerar novo QR** para encerrar acessos anteriores.
 
+Para controlar outros computadores, abra **Dispositivos > Adicionar computador** na PWA e leia o QR exibido pelo outro Open Productivity Deck. Instale também o certificado desse computador quando solicitado. A PWA retorna ao primeiro computador, salva a nova sessão e passa a exibir o seletor ao abrir.
+
 Fechar a janela pelo X mantém o deck e o servidor local funcionando. Clique no ícone da bandeja do Windows para abrir novamente; use **Sair** no menu da bandeja para encerrar completamente.
 
 Ao selecionar um executável ou atalho, o aplicativo tenta importar automaticamente seu ícone associado. Também é possível escolher manualmente uma imagem de até 256 KB em PNG, JPEG, WebP ou SVG. O conteúdo do ícone é incorporado à configuração, portanto o caminho original não é enviado ao celular.
@@ -82,11 +85,13 @@ A autoridade certificadora e sua chave privada são criadas no computador. Somen
 
 O token é armazenado em arquivo no computador e no `localStorage` da origem HTTPS no celular. Reiniciar o computador, fechar a PWA ou remover apenas o WebAPK no Android não gera um novo token. Ao reinstalar sem limpar os dados do site, a autenticação anterior é reutilizada.
 
+Ao adicionar outros computadores, a PWA guarda localmente o nome, endereço e token de cada sessão. Esses dados não são sincronizados com conta ou nuvem. Remova um computador pelo botão ao lado da sessão quando não quiser mais mantê-lo no seletor.
+
 Limpar os dados do navegador, trocar o IP local ou usar **Invalidar e gerar novo QR** exige um novo pareamento. No iOS, o sistema pode remover os dados locais junto com o aplicativo da Tela de Início, portanto essa persistência após desinstalar não é garantida pela Apple.
 
 ## Segurança
 
-O servidor escuta as portas TCP `37621` e `37622` na rede local. O token contido no QR Code é necessário em todas as ações. O painel remoto recebe somente identificadores, rótulos, ícones e cores dos botões; caminhos e protocolos configurados não são enviados ao celular.
+O servidor escuta as portas TCP `37621` e `37622` na rede local. O token contido no QR Code é necessário em todas as ações, inclusive nas solicitações entre origens usadas para controlar vários computadores. O painel remoto recebe somente identificadores, rótulos, ícones e cores dos botões; caminhos e protocolos configurados não são enviados ao celular.
 
 O bootstrap usa HTTP, mas nenhuma ação de controle é aceita nele. A aplicação e a API funcionam somente no servidor HTTPS local. Não instale o certificado em dispositivos que você não controla e não use o aplicativo em redes públicas ou não confiáveis.
 

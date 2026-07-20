@@ -24,6 +24,8 @@ pub const DEFAULT_SECURE_PORT: u16 = 37_622;
 pub struct AppState {
     config: Arc<RwLock<DeckConfig>>,
     token: Arc<RwLock<String>>,
+    pub device_id: String,
+    pub device_name: String,
     pub local_address: String,
     pub port: u16,
     pub secure_port: u16,
@@ -42,12 +44,16 @@ pub struct DashboardState {
     pub local_address: String,
     pub port: u16,
     pub secure_port: u16,
+    pub device_id: String,
+    pub device_name: String,
     pub unread: HashMap<String, Option<u32>>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteState {
+    pub device_id: String,
+    pub device_name: String,
     pub title: String,
     pub buttons: Vec<RemoteButton>,
     pub audio: Option<AudioState>,
@@ -78,10 +84,13 @@ impl AppState {
             .unwrap_or_else(|| config_dir.join("tls"));
         let config_path = config_dir.join("deck.json");
         let token_path = config_dir.join("auth-token");
+        let device_id_path = config_dir.join("device-id");
         let mut config = config::load(&config_path);
         migrate_provider_logos(&mut config, &config_path);
         let local_address = discover_local_ipv4().to_string();
         let token = load_or_create_token(&token_path);
+        let device_id = load_or_create_token(&device_id_path);
+        let device_name = std::env::var("COMPUTERNAME").ok().filter(|name| !name.trim().is_empty()).unwrap_or_else(|| "Computador Windows".into());
         let (port, secure_port) = configured_ports();
         let unread = Arc::new(UnreadCache::default());
         Arc::clone(&unread).start();
@@ -89,6 +98,8 @@ impl AppState {
         Self {
             config: Arc::new(RwLock::new(config)),
             token: Arc::new(RwLock::new(token)),
+            device_id,
+            device_name,
             local_address,
             port,
             secure_port,
@@ -107,6 +118,8 @@ impl AppState {
             local_address: self.local_address.clone(),
             port: self.port,
             secure_port: self.secure_port,
+            device_id: self.device_id.clone(),
+            device_name: self.device_name.clone(),
             unread: self.unread_counts(),
         }
     }
@@ -114,6 +127,8 @@ impl AppState {
     pub fn remote(&self) -> RemoteState {
         let config = self.config.read().expect("config lock poisoned");
         RemoteState {
+            device_id: self.device_id.clone(),
+            device_name: self.device_name.clone(),
             title: config.title.clone(),
             buttons: config
                 .buttons

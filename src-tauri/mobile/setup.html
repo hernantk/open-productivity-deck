@@ -29,8 +29,8 @@
     <small>Instale certificados somente em dispositivos e redes que você controla. A chave privada permanece no computador e nunca é enviada ao celular.</small>
   </main>
   <script>
-    const token=new URLSearchParams(location.search).get("token")||"";
-    document.getElementById("open-secure").href=`https://${location.hostname}:__SECURE_PORT__/?token=${encodeURIComponent(token)}`;
+    const params=new URLSearchParams(location.search),token=params.get("token")||"",hub=params.get("hub")||"";
+    const secure=new URL(`https://${location.hostname}:__SECURE_PORT__/`);secure.searchParams.set("token",token);if(hub)secure.searchParams.set("hub",hub);document.getElementById("open-secure").href=secure.toString();
   </script>
 </body>
 </html>

@@ -30,5 +30,7 @@ export interface DashboardState {
   localAddress: string;
   port: number;
   securePort: number;
+  deviceId: string;
+  deviceName: string;
   unread: Record<string, number | null>;
 }

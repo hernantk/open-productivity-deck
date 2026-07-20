@@ -16,8 +16,10 @@ use axum_server::tls_rustls::RustlsConfig;
 use serde::Deserialize;
 use std::{convert::Infallible, net::{IpAddr, SocketAddr}, time::Duration};
 use uuid::Uuid;
+use tower_http::cors::{Any, CorsLayer};
 
 const MOBILE_HTML: &str = include_str!("../mobile/index.html");
+const MOBILE_APP_JS: &str = include_str!("../mobile/app.js");
 const SETUP_HTML: &str = include_str!("../mobile/setup.html");
 const MANIFEST: &str = include_str!("../mobile/manifest.webmanifest");
 const SERVICE_WORKER: &str = include_str!("../mobile/sw.js");
@@ -66,6 +68,7 @@ pub async fn run(state: AppState) -> Result<(), String> {
         .with_state(bootstrap_state);
     let https_router = Router::new()
         .route("/", get(index))
+        .route("/app.js", get(mobile_app_js))
         .route("/manifest.webmanifest", get(manifest))
         .route("/sw.js", get(service_worker))
         .route("/icons/icon-192.png", get(app_icon))
@@ -80,7 +83,8 @@ pub async fn run(state: AppState) -> Result<(), String> {
         .route("/api/spotify", get(spotify_state))
         .route("/api/spotify/{action}", post(control_spotify))
         .route("/api/actions/{id}", post(launch_action))
-        .with_state(state.clone());
+        .with_state(state.clone())
+        .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any));
 
     let http_listener = tokio::net::TcpListener::bind(("0.0.0.0", state.port))
         .await
@@ -122,6 +126,10 @@ async fn http_health(State(state): State<BootstrapState>) -> String {
 
 async fn index() -> Html<&'static str> {
     Html(MOBILE_HTML)
+}
+
+async fn mobile_app_js() -> impl IntoResponse {
+    ([(header::CONTENT_TYPE, "application/javascript; charset=utf-8"), (header::CACHE_CONTROL, "no-cache")], MOBILE_APP_JS)
 }
 
 async fn manifest() -> impl IntoResponse {
