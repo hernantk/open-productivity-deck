@@ -7,6 +7,48 @@ use std::{
 
 static URI_SCHEME: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-zA-Z][a-zA-Z0-9+.-]*:").expect("valid URI regex"));
 
+/// Executáveis reconhecidos como navegador. Usado tanto para identificar janelas
+/// de site quanto para decidir que um botão de navegador sempre abre uma janela nova.
+const BROWSER_EXES: &[&str] = &[
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe",
+    "brave.exe",
+    "opera.exe",
+    "opera_gx.exe",
+    "vivaldi.exe",
+    "chromium.exe",
+    "arc.exe",
+    "waterfox.exe",
+    "librewolf.exe",
+    "thorium.exe",
+    "iexplore.exe",
+    "msedgewebview2.exe",
+];
+
+/// Navegadores “de verdade”: abrir de novo é o comportamento esperado, em vez de
+/// alternar/minimizar a janela existente.
+const STANDALONE_BROWSER_EXES: &[&str] = &[
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe",
+    "brave.exe",
+    "opera.exe",
+    "opera_gx.exe",
+    "vivaldi.exe",
+    "chromium.exe",
+    "arc.exe",
+    "waterfox.exe",
+    "librewolf.exe",
+    "thorium.exe",
+];
+
+fn is_standalone_browser(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| STANDALONE_BROWSER_EXES.iter().any(|exe| exe.eq_ignore_ascii_case(name)))
+}
+
 pub fn launch(button: &DeckButton) -> Result<(), String> {
     match button.kind {
         LaunchKind::Application => {
@@ -30,7 +72,8 @@ pub fn launch(button: &DeckButton) -> Result<(), String> {
                 );
                 return Ok(());
             }
-            if focus::try_toggle(&resolved, &button.label) {
+            // Navegador comum: sempre abre uma janela nova em vez de alternar a existente.
+            if !is_standalone_browser(&resolved.path) && focus::try_toggle(&resolved, &button.label) {
                 return Ok(());
             }
             open::that_detached(&button.target).map_err(|error| format!("Não foi possível abrir ‘{}’: {error}", button.label))
@@ -229,7 +272,7 @@ mod focus {
                     VK_MENU,
                 },
                 WindowsAndMessaging::{
-                    BringWindowToTop, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowLongPtrW,
+                    BringWindowToTop, EnumChildWindows, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowLongPtrW,
                     GetWindowPlacement, GetWindowRect, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
                     IsIconic, IsWindow, IsWindowVisible, SetForegroundWindow, SetWindowPlacement, ShowWindow, GWL_EXSTYLE,
                     GW_OWNER, SW_MINIMIZE, SW_RESTORE, SW_SHOW, SW_SHOWMAXIMIZED, SW_SHOWNORMAL, WINDOW_EX_STYLE,
@@ -316,21 +359,7 @@ mod focus {
         try_toggle_browser_window(id, label, url)
     }
 
-    const BROWSER_EXES: &[&str] = &[
-        "chrome.exe",
-        "msedge.exe",
-        "firefox.exe",
-        "brave.exe",
-        "opera.exe",
-        "vivaldi.exe",
-        "chromium.exe",
-        "arc.exe",
-        "waterfox.exe",
-        "librewolf.exe",
-        "thorium.exe",
-        "iexplore.exe",
-        "msedgewebview2.exe",
-    ];
+    use super::BROWSER_EXES;
 
     const BROWSER_CLASSES: &[&str] = &["Chrome_WidgetWin_1", "Chrome_WidgetWin_0", "MozillaWindowClass"];
 
@@ -514,14 +543,7 @@ mod focus {
         if BROWSER_CLASSES.iter().any(|name| class.eq_ignore_ascii_case(name)) {
             return true;
         }
-        let mut process_id = 0u32;
-        unsafe {
-            GetWindowThreadProcessId(hwnd, Some(&mut process_id));
-        }
-        if process_id == 0 {
-            return false;
-        }
-        process_image(process_id)
+        window_process_image(hwnd)
             .and_then(|image| image.file_name().and_then(|name| name.to_str().map(|s| s.to_string())))
             .is_some_and(|exe| BROWSER_EXES.iter().any(|name| name.eq_ignore_ascii_case(&exe)))
     }
@@ -634,7 +656,8 @@ mod focus {
     unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
         let search = unsafe { &mut *(lparam.0 as *mut Search<'_>) };
         unsafe {
-            if !IsWindowVisible(hwnd).as_bool() {
+            let iconic = IsIconic(hwnd).as_bool();
+            if !iconic && !IsWindowVisible(hwnd).as_bool() {
                 return BOOL(1);
             }
             if GetWindow(hwnd, GW_OWNER).is_ok_and(|owner| !owner.0.is_null()) {
@@ -644,13 +667,7 @@ mod focus {
                 return BOOL(1);
             }
 
-            let mut process_id = 0u32;
-            GetWindowThreadProcessId(hwnd, Some(&mut process_id));
-            if process_id == 0 {
-                return BOOL(1);
-            }
-
-            let Some(image) = process_image(process_id) else {
+            let Some(image) = window_process_image(hwnd) else {
                 return BOOL(1);
             };
 
@@ -660,7 +677,6 @@ mod focus {
                 return BOOL(1);
             }
 
-            let iconic = IsIconic(hwnd).as_bool();
             let area = window_area(hwnd);
             if area >= 40_000 {
                 score += 20;
@@ -747,8 +763,12 @@ mod focus {
             return false;
         }
 
-        let any_visible = group.iter().any(|candidate| !candidate.iconic);
-        if any_visible {
+        // Só minimiza quando a janela já está em foco. Se ela está apenas atrás de
+        // outras, o clique deve trazê-la para frente — antes isso minimizava e exigia
+        // um segundo clique para de fato focar.
+        let foreground = unsafe { GetForegroundWindow() };
+        let owns_foreground = !foreground.0.is_null() && group.iter().any(|candidate| candidate.hwnd == foreground);
+        if owns_foreground {
             let mut minimized = false;
             for candidate in &group {
                 if !candidate.iconic {
@@ -760,10 +780,14 @@ mod focus {
 
         let mut restored = false;
         for candidate in &group {
-            restored |= restore_window(candidate.hwnd);
+            if candidate.iconic {
+                restored |= restore_window(candidate.hwnd);
+            }
         }
-        force_foreground(group[0].hwnd);
-        restored || !unsafe { IsIconic(group[0].hwnd) }.as_bool()
+
+        let best = group[0].hwnd;
+        force_foreground(best);
+        restored || unsafe { GetForegroundWindow() } == best || !unsafe { IsIconic(best) }.as_bool()
     }
 
     fn minimize(hwnd: HWND) -> bool {
@@ -806,6 +830,24 @@ mod focus {
     }
 
     fn force_foreground(hwnd: HWND) {
+        for attempt in 0..3 {
+            raise_window(hwnd);
+            if unsafe { GetForegroundWindow() } == hwnd {
+                return;
+            }
+            // O Windows nega SetForegroundWindow quando outro processo detém o foco;
+            // recolher e restaurar libera a janela para vir à frente.
+            if attempt == 1 {
+                unsafe {
+                    let _ = ShowWindow(hwnd, SW_MINIMIZE);
+                }
+                restore_window(hwnd);
+            }
+            std::thread::sleep(Duration::from_millis(40));
+        }
+    }
+
+    fn raise_window(hwnd: HWND) {
         unsafe {
             let foreground = GetForegroundWindow();
             let current_thread = GetCurrentThreadId();
@@ -863,6 +905,58 @@ mod focus {
             ];
             let _ = SendInput(&mut inputs, std::mem::size_of::<INPUT>() as i32);
         }
+    }
+
+    struct HostedProcess {
+        host_pid: u32,
+        image: Option<PathBuf>,
+    }
+
+    /// Executável real por trás de uma janela.
+    ///
+    /// Apps da Store (Spotify, Microsoft Teams, WhatsApp…) no Windows 10 têm a janela
+    /// de topo hospedada por `ApplicationFrameHost.exe`; o processo do app só aparece
+    /// na janela filha `Windows.UI.Core.CoreWindow`.
+    fn window_process_image(hwnd: HWND) -> Option<PathBuf> {
+        let mut process_id = 0u32;
+        unsafe {
+            GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+        }
+        if process_id == 0 {
+            return None;
+        }
+        let image = process_image(process_id)?;
+        let hosted = image
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case("ApplicationFrameHost.exe"));
+        if !hosted {
+            return Some(image);
+        }
+
+        let mut state = HostedProcess {
+            host_pid: process_id,
+            image: None,
+        };
+        unsafe {
+            let _ = EnumChildWindows(Some(hwnd), Some(hosted_child_callback), LPARAM(std::ptr::from_mut(&mut state) as isize));
+        }
+        state.image.or(Some(image))
+    }
+
+    unsafe extern "system" fn hosted_child_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let state = unsafe { &mut *(lparam.0 as *mut HostedProcess) };
+        let mut process_id = 0u32;
+        unsafe {
+            GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+        }
+        if process_id != 0 && process_id != state.host_pid {
+            if let Some(image) = process_image(process_id) {
+                state.image = Some(image);
+                return BOOL(0);
+            }
+        }
+        BOOL(1)
     }
 
     fn process_image(process_id: u32) -> Option<PathBuf> {
