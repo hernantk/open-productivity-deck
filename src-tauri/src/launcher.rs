@@ -15,6 +15,21 @@ pub fn launch(button: &DeckButton) -> Result<(), String> {
                 return Err(format!("O destino de ‘{}’ não foi encontrado", button.label));
             }
             let resolved = resolve_launch_target(path)?;
+            if resolved.hosted_browser {
+                if focus::try_toggle_hosted(button.id, &button.label, resolved.app_url.as_deref()) {
+                    return Ok(());
+                }
+                let before = focus::browser_snapshot();
+                open::that_detached(&button.target)
+                    .map_err(|error| format!("Não foi possível abrir ‘{}’: {error}", button.label))?;
+                focus::remember_website_window(
+                    button.id,
+                    resolved.app_url.as_deref().unwrap_or(""),
+                    &button.label,
+                    before,
+                );
+                return Ok(());
+            }
             if focus::try_toggle(&resolved, &button.label) {
                 return Ok(());
             }
@@ -47,6 +62,9 @@ struct LaunchTarget {
     path: PathBuf,
     names: Vec<String>,
     aumid: Option<String>,
+    /// PWA / app mode do Chrome/Edge (`chrome_proxy`, `--app-id`, etc.).
+    hosted_browser: bool,
+    app_url: Option<String>,
 }
 
 fn resolve_launch_target(path: &Path) -> Result<LaunchTarget, String> {
@@ -67,6 +85,8 @@ fn resolve_launch_target(path: &Path) -> Result<LaunchTarget, String> {
         path: path.to_path_buf(),
         names,
         aumid: None,
+        hosted_browser: false,
+        app_url: None,
     })
 }
 
@@ -82,10 +102,15 @@ $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($env:OPD_LNK_PA
 $target = [string]$shortcut.TargetPath
 $args = [string]$shortcut.Arguments
 $aumid = ''
+$appUrl = ''
 if ($args -match 'AppsFolder\\([^\\]+)') { $aumid = $Matches[1] }
+if ($args -match '--app-id=([^\s]+)') { if (-not $aumid) { $aumid = $Matches[1] } }
+if ($args -match '--app=([^\s]+)') { $appUrl = $Matches[1] }
+elseif ($args -match '--app\s+([^\s]+)') { $appUrl = $Matches[1] }
 Write-Output $target
 Write-Output $args
 Write-Output $aumid
+Write-Output $appUrl
 "#;
     let output = Command::new("powershell.exe")
         .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script])
@@ -97,8 +122,9 @@ Write-Output $aumid
     let text = String::from_utf8_lossy(&output.stdout);
     let mut lines = text.lines().map(str::trim);
     let target = lines.next().unwrap_or_default();
-    let _args = lines.next().unwrap_or_default();
+    let args = lines.next().unwrap_or_default();
     let aumid = lines.next().unwrap_or_default();
+    let app_url = lines.next().unwrap_or_default();
 
     let resolved = if target.is_empty() { path.to_path_buf() } else { PathBuf::from(target) };
     if let Some(name) = resolved.file_name().and_then(|name| name.to_str()) {
@@ -107,6 +133,28 @@ Write-Output $aumid
     if let Some(stem) = resolved.file_stem().and_then(|stem| stem.to_str()) {
         push_unique(&mut names, format!("{stem}.exe"));
     }
+
+    let exe_name = resolved
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let args_l = args.to_ascii_lowercase();
+    let hosted_browser = exe_name.contains("chrome_proxy")
+        || exe_name.contains("msedge_proxy")
+        || args_l.contains("--app-id=")
+        || args_l.contains("--app=")
+        || args_l.contains("--app ");
+
+    if hosted_browser {
+        if exe_name.contains("edge") {
+            push_unique(&mut names, "msedge.exe".into());
+        } else {
+            push_unique(&mut names, "chrome.exe".into());
+            push_unique(&mut names, "msedge.exe".into());
+        }
+    }
+
     if !aumid.is_empty() {
         // Store apps: ms-teams.exe, WhatsApp.exe, etc. costumam aparecer no AUMID.
         for piece in aumid.split(['!', '_', '.']) {
@@ -120,6 +168,8 @@ Write-Output $aumid
         path: resolved,
         names,
         aumid: (!aumid.is_empty()).then(|| aumid.to_string()),
+        hosted_browser,
+        app_url: (!app_url.is_empty()).then(|| app_url.to_string()),
     })
 }
 
@@ -139,6 +189,10 @@ mod focus {
     }
 
     pub fn try_toggle_protocol(_id: Uuid, _url: &str, _label: &str) -> bool {
+        false
+    }
+
+    pub fn try_toggle_hosted(_id: Uuid, _label: &str, _url: Option<&str>) -> bool {
         false
     }
 
@@ -251,9 +305,15 @@ mod focus {
                 path: PathBuf::from(&names[0]),
                 names,
                 aumid: None,
+                hosted_browser: false,
+                app_url: None,
             },
             label,
         )
+    }
+
+    pub fn try_toggle_hosted(id: Uuid, label: &str, url: Option<&str>) -> bool {
+        try_toggle_browser_window(id, label, url)
     }
 
     const BROWSER_EXES: &[&str] = &[
@@ -282,6 +342,10 @@ mod focus {
     }
 
     fn try_toggle_website(id: Uuid, url: &str, label: &str) -> bool {
+        try_toggle_browser_window(id, label, Some(url))
+    }
+
+    fn try_toggle_browser_window(id: Uuid, label: &str, url: Option<&str>) -> bool {
         if let Some(hwnd) = cached_hwnd(id) {
             let iconic = unsafe { IsIconic(hwnd) }.as_bool();
             if toggle_candidates(&[Candidate {
@@ -294,14 +358,11 @@ mod focus {
             clear_cached_hwnd(id);
         }
 
-        let Ok(parsed) = url::Url::parse(url) else {
-            return false;
-        };
-        let Some(host) = parsed.host_str() else {
-            return false;
-        };
-        let needles = host_needles(host);
-        if needles.is_empty() {
+        let needles = url
+            .and_then(|value| url::Url::parse(value).ok())
+            .and_then(|parsed| parsed.host_str().map(host_needles))
+            .unwrap_or_default();
+        if needles.is_empty() && label.trim().len() < 2 {
             return false;
         }
 
@@ -351,7 +412,7 @@ mod focus {
         for attempt in 0..12 {
             std::thread::sleep(Duration::from_millis(100));
 
-            if !needles.is_empty() {
+            if !needles.is_empty() || label.trim().len() >= 2 {
                 let mut search = WebsiteSearch {
                     needles: &needles,
                     label,
@@ -528,9 +589,12 @@ mod focus {
             let mut label_hit = false;
             if label.len() >= 2 {
                 let label_l = label.to_ascii_lowercase();
-                if title_l.contains(&label_l) {
+                if title_l == label_l {
                     label_hit = true;
-                    score += 80;
+                    score += 120;
+                } else if title_l.starts_with(&label_l) || title_l.contains(&label_l) {
+                    label_hit = true;
+                    score += if title_l.starts_with(&label_l) { 95 } else { 80 };
                 } else {
                     for word in label_l.split_whitespace().filter(|word| word.len() >= 3) {
                         if title_l.contains(word) {
