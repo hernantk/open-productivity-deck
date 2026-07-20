@@ -8,8 +8,9 @@ use directories::ProjectDirs;
 use serde::Serialize;
 use std::{
     collections::HashMap,
+    fs,
     net::{IpAddr, Ipv4Addr},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, RwLock},
     thread,
     time::Duration,
@@ -17,6 +18,7 @@ use std::{
 use uuid::Uuid;
 
 pub const DEFAULT_PORT: u16 = 37_621;
+pub const DEFAULT_SECURE_PORT: u16 = 37_622;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -24,7 +26,10 @@ pub struct AppState {
     token: Arc<RwLock<String>>,
     pub local_address: String,
     pub port: u16,
+    pub secure_port: u16,
+    pub tls_dir: Arc<PathBuf>,
     config_path: Arc<PathBuf>,
+    token_path: Arc<PathBuf>,
     unread: Arc<UnreadCache>,
 }
 
@@ -36,6 +41,7 @@ pub struct DashboardState {
     pub pairing_url: String,
     pub local_address: String,
     pub port: u16,
+    pub secure_port: u16,
     pub unread: HashMap<String, Option<u32>>,
 }
 
@@ -60,11 +66,21 @@ pub struct RemoteButton {
 
 impl AppState {
     pub fn new() -> Self {
-        let config_path = ProjectDirs::from("org", "OpenProductivity", "Open Productivity Deck")
-            .map(|directories| directories.config_dir().join("deck.json"))
-            .unwrap_or_else(|| PathBuf::from("deck.json"));
+        let directories = ProjectDirs::from("org", "OpenProductivity", "Open Productivity Deck");
+        let config_dir = directories
+            .as_ref()
+            .map(|directories| directories.config_dir().to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+        let tls_dir = directories
+            .as_ref()
+            .map(|directories| directories.data_local_dir().join("tls"))
+            .unwrap_or_else(|| config_dir.join("tls"));
+        let config_path = config_dir.join("deck.json");
+        let token_path = config_dir.join("auth-token");
         let config = config::load(&config_path);
         let local_address = discover_local_ipv4().to_string();
+        let token = load_or_create_token(&token_path);
+        let (port, secure_port) = configured_ports();
         let unread = Arc::new(UnreadCache::default());
         let unread_worker = Arc::clone(&unread);
         let _ = thread::Builder::new()
@@ -76,10 +92,13 @@ impl AppState {
 
         Self {
             config: Arc::new(RwLock::new(config)),
-            token: Arc::new(RwLock::new(Uuid::new_v4().to_string())),
+            token: Arc::new(RwLock::new(token)),
             local_address,
-            port: configured_port(),
+            port,
+            secure_port,
+            tls_dir: Arc::new(tls_dir),
             config_path: Arc::new(config_path),
+            token_path: Arc::new(token_path),
             unread,
         }
     }
@@ -91,6 +110,7 @@ impl AppState {
             pairing_url: self.pairing_url(),
             local_address: self.local_address.clone(),
             port: self.port,
+            secure_port: self.secure_port,
             unread: self.unread_counts(),
         }
     }
@@ -132,17 +152,17 @@ impl AppState {
         self.token.read().map(|token| token.as_str() == provided).unwrap_or(false)
     }
 
-    pub fn regenerate_pairing(&self) -> String {
-        if let Ok(mut token) = self.token.write() {
-            *token = Uuid::new_v4().to_string();
-        }
-        self.pairing_url()
+    pub fn regenerate_pairing(&self) -> Result<String, String> {
+        let token = Uuid::new_v4().to_string();
+        persist_token(&self.token_path, &token)?;
+        *self.token.write().map_err(|_| "A autenticação está bloqueada".to_string())? = token;
+        Ok(self.pairing_url())
     }
 
     fn pairing_url(&self) -> String {
         let host = if self.local_address.contains(':') { format!("[{}]", self.local_address) } else { self.local_address.clone() };
         let token = self.token.read().map(|token| token.clone()).unwrap_or_default();
-        format!("http://{host}:{}?token={token}", self.port)
+        format!("http://{host}:{}/setup?token={token}", self.port)
     }
 
     fn unread_counts(&self) -> HashMap<String, Option<u32>> {
@@ -171,12 +191,40 @@ fn discover_local_ipv4() -> Ipv4Addr {
         .unwrap_or(Ipv4Addr::LOCALHOST)
 }
 
-fn configured_port() -> u16 {
-    std::env::var("OPEN_PRODUCTIVITY_DECK_PORT")
+fn configured_ports() -> (u16, u16) {
+    let port = std::env::var("OPEN_PRODUCTIVITY_DECK_PORT")
         .ok()
         .and_then(|value| value.parse().ok())
         .filter(|port| *port >= 1024)
-        .unwrap_or(DEFAULT_PORT)
+        .unwrap_or(DEFAULT_PORT);
+    let secure_port = std::env::var("OPEN_PRODUCTIVITY_DECK_HTTPS_PORT")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .filter(|secure_port| *secure_port >= 1024 && *secure_port != port)
+        .unwrap_or_else(|| if port == DEFAULT_PORT { DEFAULT_SECURE_PORT } else { port.saturating_add(1) });
+    (port, secure_port)
+}
+
+fn load_or_create_token(path: &Path) -> String {
+    if let Ok(token) = fs::read_to_string(path) {
+        let token = token.trim();
+        if Uuid::parse_str(token).is_ok() {
+            return token.to_string();
+        }
+    }
+
+    let token = Uuid::new_v4().to_string();
+    let _ = persist_token(path, &token);
+    token
+}
+
+fn persist_token(path: &Path, token: &str) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| format!("Não foi possível criar a pasta de autenticação: {error}"))?;
+    }
+    let temporary = path.with_extension("tmp");
+    fs::write(&temporary, token).map_err(|error| format!("Não foi possível salvar a autenticação: {error}"))?;
+    fs::rename(&temporary, path).map_err(|error| format!("Não foi possível publicar a autenticação: {error}"))
 }
 
 fn select_local_ipv4(interfaces: &[(String, IpAddr)]) -> Option<Ipv4Addr> {
@@ -250,5 +298,17 @@ mod tests {
         ];
 
         assert_eq!(select_local_ipv4(&interfaces), Some(Ipv4Addr::new(10, 0, 0, 24)));
+    }
+
+    #[test]
+    fn reuses_persisted_authentication_token() {
+        let directory = std::env::temp_dir().join(format!("opd-token-test-{}", Uuid::new_v4()));
+        let path = directory.join("auth-token");
+        let first = load_or_create_token(&path);
+        let second = load_or_create_token(&path);
+
+        assert_eq!(first, second);
+        assert!(Uuid::parse_str(&first).is_ok());
+        let _ = fs::remove_dir_all(directory);
     }
 }

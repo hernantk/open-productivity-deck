@@ -3,6 +3,7 @@ mod config;
 mod launcher;
 mod server;
 mod state;
+mod tls;
 mod unread;
 
 use audio::AudioState;
@@ -60,7 +61,7 @@ fn read_icon_data_url(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn regenerate_pairing(state: tauri::State<'_, AppState>) -> String {
+fn regenerate_pairing(state: tauri::State<'_, AppState>) -> Result<String, String> {
     state.regenerate_pairing()
 }
 
@@ -74,6 +75,7 @@ fn show_main_window(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let state = AppState::new();
     let server_state = state.clone();
 

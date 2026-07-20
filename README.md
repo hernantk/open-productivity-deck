@@ -9,6 +9,7 @@ Um deck de produtividade livre para Windows 10/11. O aplicativo desktop controla
 - Controle independente para mutar o microfone padrão.
 - Painel mobile aberto pelo navegador, sem aplicativo adicional.
 - Layout mobile otimizado para uso horizontal, sem barra superior.
+- Instalação como PWA por HTTPS local.
 - Pareamento por QR Code com token aleatório revogável.
 - Atalhos configuráveis para executáveis, arquivos, URLs e protocolos do Windows.
 - Ícones personalizados em PNG, JPEG, WebP ou SVG para os aplicativos.
@@ -46,9 +47,11 @@ O instalador NSIS é criado em `src-tauri/target/release/bundle/nsis`.
 
 1. Abra o aplicativo no computador.
 2. Leia o QR Code usando a câmera do celular.
-3. Controle o volume ou use os atalhos pelo navegador.
-4. Configure novos botões no computador e selecione **Publicar alterações**.
-5. Use **Invalidar e gerar novo QR** para encerrar acessos anteriores.
+3. Na primeira vez, baixe e instale o certificado local indicado pela página.
+4. Abra o endereço seguro e instale a PWA pelo navegador.
+5. Controle o volume ou use os atalhos pelo aplicativo instalado.
+6. Configure novos botões no computador e selecione **Publicar alterações**.
+7. Use **Invalidar e gerar novo QR** para encerrar acessos anteriores.
 
 Fechar a janela pelo X mantém o deck e o servidor local funcionando. Clique no ícone da bandeja do Windows para abrir novamente; use **Sair** no menu da bandeja para encerrar completamente.
 
@@ -56,11 +59,30 @@ Cada atalho pode receber uma imagem de até 256 KB. O conteúdo do ícone é inc
 
 Aplicativos instalados pela Microsoft Store podem ser abertos por seus protocolos registrados. Os padrões iniciais usam `msteams:` e `whatsapp:`; caso uma instalação não registre esses protocolos, selecione o executável ou atalho correspondente.
 
+## Instalação PWA
+
+A PWA utiliza duas portas na rede local:
+
+- `37621`: página HTTP usada somente para baixar o certificado e iniciar o pareamento.
+- `37622`: aplicação e API protegidas por HTTPS.
+
+No Android, instale o arquivo `.cer` como certificado de CA nas configurações de segurança. Depois, abra o aplicativo seguro e use **Instalar** no Chrome.
+
+No iPhone ou iPad, instale o perfil baixado e habilite a confiança em **Ajustes > Geral > Sobre > Ajustes de Confiança de Certificados**. Em seguida, use **Compartilhar > Adicionar à Tela de Início**.
+
+A autoridade certificadora e sua chave privada são criadas no computador. Somente o certificado público é disponibilizado para download. Se o IP local mudar, o computador gera automaticamente um novo certificado de servidor assinado pela mesma autoridade.
+
+## Autenticação persistente
+
+O token é armazenado em arquivo no computador e no `localStorage` da origem HTTPS no celular. Reiniciar o computador, fechar a PWA ou remover apenas o WebAPK no Android não gera um novo token. Ao reinstalar sem limpar os dados do site, a autenticação anterior é reutilizada.
+
+Limpar os dados do navegador, trocar o IP local ou usar **Invalidar e gerar novo QR** exige um novo pareamento. No iOS, o sistema pode remover os dados locais junto com o aplicativo da Tela de Início, portanto essa persistência após desinstalar não é garantida pela Apple.
+
 ## Segurança
 
-O servidor escuta a porta TCP `37621` na rede local. O token contido no QR Code é necessário em todas as ações. O painel remoto recebe somente identificadores, rótulos e cores dos botões; caminhos e protocolos configurados não são enviados ao celular.
+O servidor escuta as portas TCP `37621` e `37622` na rede local. O token contido no QR Code é necessário em todas as ações. O painel remoto recebe somente identificadores, rótulos, ícones e cores dos botões; caminhos e protocolos configurados não são enviados ao celular.
 
-O acesso usa HTTP local, sem certificado TLS. Não use o aplicativo em redes públicas ou não confiáveis. Gere um novo QR Code ao perder o controle de um dispositivo pareado.
+O bootstrap usa HTTP, mas nenhuma ação de controle é aceita nele. A aplicação e a API funcionam somente no servidor HTTPS local. Não instale o certificado em dispositivos que você não controla e não use o aplicativo em redes públicas ou não confiáveis.
 
 A configuração fica no diretório de configuração do usuário, normalmente em `%APPDATA%\OpenProductivity\Open Productivity Deck\config\deck.json`.
 

@@ -29,5 +29,6 @@ export interface DashboardState {
   pairingUrl: string;
   localAddress: string;
   port: number;
+  securePort: number;
   unread: Record<string, number | null>;
 }

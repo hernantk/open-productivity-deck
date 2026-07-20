@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#17211f">
+  <title>Instalar Productivity Deck</title>
+  <style>
+    :root{font-family:"Segoe UI Variable",Segoe UI,sans-serif;color:#17211f;background:#e7e0d3;--paper:#f5f0e5;--ink:#17211f;--accent:#e9592f;--muted:#69716a;--rule:#bdb5a8}
+    *{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at 15% 10%,#f8f0e1,transparent 28rem),#e7e0d3}
+    main{width:min(720px,100%);padding:clamp(22px,6vw,52px);border:1px solid var(--ink);background:var(--paper);box-shadow:10px 10px 0 var(--accent)}
+    .kicker{color:var(--accent);font-size:10px;font-weight:900;letter-spacing:.16em}h1{max-width:570px;margin:12px 0 10px;font-size:clamp(32px,8vw,62px);line-height:.94;letter-spacing:-.055em}p{color:var(--muted);font-size:14px;line-height:1.6}
+    ol{display:grid;gap:12px;margin:28px 0;padding:0;list-style:none;counter-reset:steps}li{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start;padding-top:12px;border-top:1px solid var(--rule);font-size:13px;line-height:1.5;counter-increment:steps}li::before{content:counter(steps);display:grid;place-items:center;width:28px;height:28px;border-radius:50%;color:var(--paper);background:var(--ink);font-size:11px;font-weight:900}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.button{display:flex;align-items:center;justify-content:center;min-height:50px;padding:12px;border:1px solid var(--ink);color:var(--ink);background:transparent;font-size:12px;font-weight:850;text-align:center;text-decoration:none}.button.primary{color:var(--paper);background:var(--ink)}.button:active{transform:translateY(1px)}small{display:block;margin-top:18px;color:var(--muted);font-size:10px;line-height:1.5}
+    @media(max-width:520px){.actions{grid-template-columns:1fr}main{box-shadow:6px 6px 0 var(--accent)}}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="kicker">CONFIGURAÇÃO SEGURA · UMA VEZ</div>
+    <h1>Instale o acesso local.</h1>
+    <p>A PWA usa HTTPS dentro da sua rede. Instale o certificado público deste computador uma vez e depois abra o deck seguro.</p>
+    <ol>
+      <li><span>Baixe o certificado. No Android, escolha certificado de CA nas configurações de segurança. No iPhone, instale o perfil e ative a confiança total em Ajustes.</span></li>
+      <li><span>Volte a esta página e abra o aplicativo seguro. No Chrome, toque em Instalar. No iPhone, use Compartilhar e Adicionar à Tela de Início.</span></li>
+      <li><span>A autenticação será lembrada até você limpar os dados do site ou gerar um novo QR no computador.</span></li>
+    </ol>
+    <div class="actions"><a class="button" href="/ca.cer" download="open-productivity-deck-ca.cer">1. Baixar certificado</a><a class="button primary" id="open-secure" href="#">2. Abrir aplicativo seguro</a></div>
+    <small>Instale certificados somente em dispositivos e redes que você controla. A chave privada permanece no computador e nunca é enviada ao celular.</small>
+  </main>
+  <script>
+    const token=new URLSearchParams(location.search).get("token")||"";
+    document.getElementById("open-secure").href=`https://${location.hostname}:__SECURE_PORT__/?token=${encodeURIComponent(token)}`;
+  </script>
+</body>
+</html>
