@@ -74,8 +74,9 @@
     function volumeFromPointer(event){const rect=dial.getBoundingClientRect(),x=event.clientX-rect.left-rect.width/2,y=event.clientY-rect.top-rect.height/2;let angle=Math.atan2(y,x)*180/Math.PI;if(angle<0)angle+=360;let travel=(angle-135+360)%360;if(travel>270)travel=travel<315?270:0;sendVolume(travel/270*100)}
     dial.addEventListener("pointerdown",event=>{dial.setPointerCapture(event.pointerId);volumeFromPointer(event)});dial.addEventListener("pointermove",event=>{if(dial.hasPointerCapture(event.pointerId))volumeFromPointer(event)});dial.addEventListener("keydown",event=>{if(["ArrowUp","ArrowRight"].includes(event.key))sendVolume(lastVolume+2);if(["ArrowDown","ArrowLeft"].includes(event.key))sendVolume(lastVolume-2)});
     mute.addEventListener("click",()=>{navigator.vibrate?.(15);api("/api/mute",{method:"POST"}).then(setAudio).catch(error=>showToast(error.message))});microphone.addEventListener("click",()=>{navigator.vibrate?.(15);api("/api/microphone",{method:"POST"}).then(setAudio).catch(error=>showToast(error.message))});
+    function connectEvents(){if(!token)return;const source=new EventSource(`/api/events?token=${encodeURIComponent(token)}`);source.addEventListener("unread",event=>{if(!state)return;try{render({...state,unread:JSON.parse(event.data)})}catch{}})}
     window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();installPrompt=event;installButton.style.display="block"});installButton.addEventListener("click",async()=>{if(!installPrompt)return;installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;installButton.style.display="none"});window.addEventListener("appinstalled",()=>{installButton.style.display="none"});if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
-    load();setInterval(load,4000);
+    load();connectEvents();setInterval(load,4000);
   </script>
 </body>
 </html>

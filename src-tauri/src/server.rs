@@ -7,13 +7,13 @@ use axum::{
     body::Bytes,
     extract::{Path, Query, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
-    response::{Html, IntoResponse},
+    response::{sse::{Event, KeepAlive, Sse}, Html, IntoResponse},
     routing::{get, post},
     Json, Router,
 };
 use axum_server::tls_rustls::RustlsConfig;
 use serde::Deserialize;
-use std::net::{IpAddr, SocketAddr};
+use std::{convert::Infallible, net::{IpAddr, SocketAddr}, time::Duration};
 use uuid::Uuid;
 
 const MOBILE_HTML: &str = include_str!("../mobile/index.html");
@@ -72,6 +72,7 @@ pub async fn run(state: AppState) -> Result<(), String> {
         .route("/apple-touch-icon.png", get(app_icon))
         .route("/health", get(health))
         .route("/api/state", get(api_state))
+        .route("/api/events", get(unread_events))
         .route("/api/volume", post(set_volume))
         .route("/api/mute", post(toggle_mute))
         .route("/api/microphone", post(toggle_microphone))
@@ -145,6 +146,29 @@ async fn health(State(state): State<AppState>) -> String {
 async fn api_state(State(state): State<AppState>, Query(auth): Query<AuthQuery>) -> Result<Json<RemoteState>, ApiError> {
     authorize(&state, &auth)?;
     Ok(Json(state.remote()))
+}
+
+async fn unread_events(
+    State(state): State<AppState>,
+    Query(auth): Query<AuthQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    authorize(&state, &auth)?;
+    let mut receiver = state.subscribe_unread();
+    let stream_state = state.clone();
+    let stream = async_stream::stream! {
+        let initial = serde_json::to_string(&stream_state.unread_counts()).unwrap_or_else(|_| "{}".into());
+        yield Ok::<Event, Infallible>(Event::default().event("unread").data(initial));
+        loop {
+            match receiver.recv().await {
+                Ok(()) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                    let data = serde_json::to_string(&stream_state.unread_counts()).unwrap_or_else(|_| "{}".into());
+                    yield Ok(Event::default().event("unread").data(data));
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    };
+    Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)).text("keep-alive")))
 }
 
 async fn set_volume(

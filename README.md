@@ -15,6 +15,7 @@ Um deck de produtividade livre para Windows 10/11. O aplicativo desktop controla
 - Ícones personalizados em PNG, JPEG, WebP ou SVG para os aplicativos.
 - Execução em segundo plano pela bandeja do Windows.
 - Contadores experimentais de mensagens não lidas do Teams e WhatsApp.
+- Atualização em tempo real dos badges pelo canal SSE autenticado.
 - Configuração local, sem conta, nuvem ou telemetria.
 
 ## Requisitos
@@ -94,6 +95,8 @@ Teams e WhatsApp não oferecem uma API pública estável para consultar mensagen
 - O contador continua disponível quando o aplicativo está fechado, desde que o badge permaneça registrado pelo Windows.
 - Se o Windows não oferecer um badge numérico, o aplicativo aberto aparece como zero.
 - Atualizações do Teams ou WhatsApp podem interromper a detecção.
+
+O aplicativo monitora as alterações da central de notificações e envia o novo contador imediatamente à PWA por Server-Sent Events. Se o monitoramento de arquivos não estiver disponível, a recuperação consulta o estado a cada dois segundos.
 
 ## Licença
 

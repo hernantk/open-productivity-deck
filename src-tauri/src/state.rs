@@ -12,8 +12,6 @@ use std::{
     net::{IpAddr, Ipv4Addr},
     path::{Path, PathBuf},
     sync::{Arc, RwLock},
-    thread,
-    time::Duration,
 };
 use uuid::Uuid;
 
@@ -82,13 +80,7 @@ impl AppState {
         let token = load_or_create_token(&token_path);
         let (port, secure_port) = configured_ports();
         let unread = Arc::new(UnreadCache::default());
-        let unread_worker = Arc::clone(&unread);
-        let _ = thread::Builder::new()
-            .name("unread-counter".into())
-            .spawn(move || loop {
-                unread_worker.refresh();
-                thread::sleep(Duration::from_secs(5));
-            });
+        Arc::clone(&unread).start();
 
         Self {
             config: Arc::new(RwLock::new(config)),
@@ -165,7 +157,7 @@ impl AppState {
         format!("http://{host}:{}/setup?token={token}", self.port)
     }
 
-    fn unread_counts(&self) -> HashMap<String, Option<u32>> {
+    pub fn unread_counts(&self) -> HashMap<String, Option<u32>> {
         self.unread
             .snapshot()
             .into_iter()
@@ -177,6 +169,10 @@ impl AppState {
                 (name.into(), count)
             })
             .collect()
+    }
+
+    pub fn subscribe_unread(&self) -> tokio::sync::broadcast::Receiver<()> {
+        self.unread.subscribe()
     }
 }
 
