@@ -9,6 +9,7 @@ export interface DeckButton {
   color: string;
   icon: string | null;
   showLabel: boolean;
+  transparentBackground: boolean;
   unreadProvider: UnreadProvider;
 }
 

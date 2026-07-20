@@ -356,9 +356,10 @@ function render(next) {
   }
   next.buttons.forEach((button) => {
     const showLabel = Boolean(button.showLabel);
+    const transparent = Boolean(button.transparentBackground);
     const element = document.createElement("button");
     element.type = "button";
-    element.className = showLabel ? "action" : "action icon-only";
+    element.className = ["action", showLabel ? "" : "icon-only", transparent ? "transparent-bg" : ""].filter(Boolean).join(" ");
     element.style.setProperty("--color", button.color);
     element.setAttribute("aria-label", button.label);
     const glyph = document.createElement("span");

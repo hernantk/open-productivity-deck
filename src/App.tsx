@@ -85,8 +85,13 @@ function VolumeDial({ audio, onChange }: { audio: AudioState | null; onChange: (
 
 function ActionPreview({ button, unread }: { button: DeckButton; unread: number | null | undefined }) {
   const initials = button.label.trim().split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "?";
+  const classes = [
+    "action-preview",
+    button.showLabel ? "" : "icon-only",
+    button.transparentBackground ? "transparent-bg" : "",
+  ].filter(Boolean).join(" ");
   return (
-    <div className={`action-preview ${button.showLabel ? "" : "icon-only"}`} style={{ "--button-color": button.color } as React.CSSProperties} title={button.label || "Sem nome"}>
+    <div className={classes} style={{ "--button-color": button.color } as React.CSSProperties} title={button.label || "Sem nome"}>
       <span className="action-glyph">{button.icon ? <img src={button.icon} alt="" /> : initials}</span>
       {button.showLabel && <span className="action-name">{button.label || "Sem nome"}</span>}
       {typeof unread === "number" && unread > 0 && <b className="unread-badge">{unread > 99 ? "99+" : unread}</b>}
@@ -116,6 +121,7 @@ function ButtonEditor({ button, index, total, fetchingIcon, onChange, onMove, on
         <label className="target-field">Destino<span className="input-with-action"><input value={button.target} placeholder={button.kind === "url" ? "https://exemplo.com ou protocolo:" : "C:\\...\\aplicativo.exe"} onChange={(event) => onChange({ ...button, target: event.target.value })} />{button.kind === "application" && <button type="button" className="field-action" onClick={onPick} aria-label="Procurar aplicativo"><Icon name="folder" /></button>}{button.kind === "url" && <button type="button" className="field-action" onClick={onFetchIcon} disabled={fetchingIcon || !button.target.trim()} aria-label="Importar ícone do site"><Icon name="globe" /></button>}</span></label>
         <label>Contador<select value={button.unreadProvider ?? ""} onChange={(event) => onChange({ ...button, unreadProvider: (event.target.value || null) as DeckButton["unreadProvider"] })}><option value="">Nenhum</option><option value="teams">Microsoft Teams</option><option value="whatsapp">WhatsApp</option></select></label>
         <label className="toggle-field"><span>Mostrar nome</span><button type="button" className={`toggle ${button.showLabel ? "on" : ""}`} role="switch" aria-checked={button.showLabel} onClick={() => onChange({ ...button, showLabel: !button.showLabel })}><i /></button></label>
+        <label className="toggle-field"><span>Fundo transparente</span><button type="button" className={`toggle ${button.transparentBackground ? "on" : ""}`} role="switch" aria-checked={button.transparentBackground} onClick={() => onChange({ ...button, transparentBackground: !button.transparentBackground })}><i /></button></label>
         <div className="icon-field"><span>Ícone</span><div><button type="button" onClick={onPickIcon}><Icon name="image" />{button.icon ? "Trocar" : "Escolher"}</button>{button.icon && <button type="button" className="clear-icon" onClick={onClearIcon} aria-label="Remover ícone">×</button>}</div></div>
         <fieldset className="color-field"><legend>Cor</legend><div>{ACCENTS.map((color) => <button key={color} type="button" className={button.color === color ? "selected" : ""} style={{ backgroundColor: color }} aria-label={`Usar cor ${color}`} onClick={() => onChange({ ...button, color })} />)}</div></fieldset>
       </div>
@@ -297,6 +303,7 @@ export default function App() {
         color: ACCENTS[draft.buttons.length % ACCENTS.length],
         icon: null,
         showLabel: false,
+        transparentBackground: false,
         unreadProvider: null,
       }],
     });

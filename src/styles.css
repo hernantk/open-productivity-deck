@@ -423,6 +423,17 @@ main {
   min-height: 72px;
   padding: 10px;
 }
+.action-preview.transparent-bg {
+  color: var(--ink);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.action-preview.transparent-bg .action-glyph {
+  border-color: color-mix(in oklab, var(--ink) 18%, transparent);
+}
+.action-preview.transparent-bg .action-glyph img {
+  padding: 1px;
+}
 .action-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .action-glyph {
   display: grid;
@@ -453,7 +464,7 @@ main {
 
 .editor-fields {
   display: grid;
-  grid-template-columns: 1fr 1.1fr 2fr auto auto auto auto;
+  grid-template-columns: 1fr 1.1fr 2fr auto auto auto auto auto;
   align-items: end;
   gap: 10px;
   min-width: 0;

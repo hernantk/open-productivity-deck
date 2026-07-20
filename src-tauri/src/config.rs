@@ -22,6 +22,8 @@ pub struct DeckButton {
     pub icon: Option<String>,
     #[serde(default)]
     pub show_label: bool,
+    #[serde(default)]
+    pub transparent_background: bool,
     pub unread_provider: Option<UnreadProvider>,
 }
 
@@ -53,6 +55,7 @@ impl Default for DeckConfig {
                     color: "#675a9e".into(),
                     icon: None,
                     show_label: false,
+                    transparent_background: false,
                     unread_provider: Some(UnreadProvider::Teams),
                 },
                 DeckButton {
@@ -63,6 +66,7 @@ impl Default for DeckConfig {
                     color: "#286c64".into(),
                     icon: None,
                     show_label: false,
+                    transparent_background: false,
                     unread_provider: Some(UnreadProvider::Whatsapp),
                 },
             ],
